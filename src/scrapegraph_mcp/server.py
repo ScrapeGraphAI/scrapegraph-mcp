@@ -5,8 +5,8 @@ This server exposes methods to use ScapeGraph's AI-powered web scraping services
 - markdownify: Convert any webpage into clean, formatted markdown
 - smartscraper: Extract structured data from any webpage using AI
 - searchscraper: Perform AI-powered web searches with structured results
-- crawl_requester: Initiate intelligent web crawling requests (step 1)
-- crawl_fetcher: Fetch results from crawling requests (step 2)
+- smartcrawler_initiate: Initiate intelligent multi-page web crawling with AI extraction or markdown conversion
+- smartcrawler_fetch_results: Retrieve results from asynchronous crawling operations
 """
 
 import os
@@ -126,49 +126,54 @@ class ScapeGraphClient:
 
         return response.json()
 
-    def crawl_requester(
+    def smartcrawler_initiate(
         self, 
         url: str, 
         prompt: str = None, 
-        cache_website: bool = None,
+        extraction_mode: str = "ai",
         depth: int = None,
         max_pages: int = None,
-        same_domain_only: bool = None,
-        markdown_only: bool = None
+        same_domain_only: bool = None
     ) -> Dict[str, Any]:
         """
-        Initiate a web crawling request and get a request ID.
+        Initiate a SmartCrawler request for multi-page web crawling.
+        
+        SmartCrawler supports two modes:
+        - AI Extraction Mode (10 credits per page): Extracts structured data based on your prompt
+        - Markdown Conversion Mode (2 credits per page): Converts pages to clean markdown
+
+        Smartcrawler takes some time to process the request and returns the request id.
+        Use smartcrawler_fetch_results to get the results of the request.
+        You have to keep polling the smartcrawler_fetch_results until the request is complete.
+        The request is complete when the status is "completed".
 
         Args:
             url: Starting URL to crawl
-            prompt: AI prompt for data extraction (optional, if not provided returns markdown only)
-            cache_website: Whether to cache the website content (optional)
-            depth: Maximum crawling depth (optional)
+            prompt: AI prompt for data extraction (required for AI mode)
+            extraction_mode: "ai" for AI extraction or "markdown" for markdown conversion (default: "ai")
+            depth: Maximum link traversal depth (optional)
             max_pages: Maximum number of pages to crawl (optional)
             same_domain_only: Whether to crawl only within the same domain (optional)
-            markdown_only: Whether to return only markdown content without AI processing (optional)
 
         Returns:
-            Dictionary containing the request ID and status
+            Dictionary containing the request ID for async processing
         """
-        endpoint = f"{self.BASE_URL}/crawl/requester"
+        endpoint = f"{self.BASE_URL}/crawl"
         data = {
             "url": url
         }
         
-        # Add optional parameters if provided
-        if prompt is not None:
+        # Handle extraction mode
+        if extraction_mode == "markdown":
+            data["markdown_only"] = True
+        elif prompt is not None:
             data["prompt"] = prompt
-        if cache_website is not None:
-            data["cache_website"] = cache_website
         if depth is not None:
             data["depth"] = depth
         if max_pages is not None:
             data["max_pages"] = max_pages
         if same_domain_only is not None:
             data["same_domain_only"] = same_domain_only
-        if markdown_only is not None:
-            data["markdown_only"] = markdown_only
 
         response = self.client.post(endpoint, headers=self.headers, json=data)
 
@@ -178,22 +183,27 @@ class ScapeGraphClient:
 
         return response.json()
 
-    def crawl_fetcher(self, request_id: str) -> Dict[str, Any]:
+    def smartcrawler_fetch_results(self, request_id: str) -> Dict[str, Any]:
         """
-        Fetch the results of a crawling request using the request ID.
+        Fetch the results of a SmartCrawler operation.
 
         Args:
-            request_id: The request ID returned by crawl_requester
+            request_id: The request ID returned by smartcrawler_initiate
 
         Returns:
-            Dictionary containing the crawl results or status
-        """
-        endpoint = f"{self.BASE_URL}/crawl/fetcher"
-        data = {
-            "request_id": request_id
-        }
+            Dictionary containing the crawled data (structured extraction or markdown)
+            and metadata about processed pages
 
-        response = self.client.post(endpoint, headers=self.headers, json=data)
+        Note:
+        It takes some time to process the request and returns the results.
+        Meanwhile it returns the status of the request.
+        You have to keep polling the smartcrawler_fetch_results until the request is complete.
+        The request is complete when the status is "completed". and you get results
+        Keep polling the smartcrawler_fetch_results until the request is complete.
+        """
+        endpoint = f"{self.BASE_URL}/crawl/{request_id}"
+        
+        response = self.client.get(endpoint, headers=self.headers)
 
         if response.status_code != 200:
             error_msg = f"Error {response.status_code}: {response.text}"
@@ -291,66 +301,68 @@ def searchscraper(
         return {"error": str(e)}
 
 
-# Add tool for crawl requester (smartcrawler step 1)
+# Add tool for SmartCrawler initiation
 @mcp.tool()
-def crawl_requester(
+def smartcrawler_initiate(
     url: str,
     prompt: str = None,
-    cache_website: bool = None,
+    extraction_mode: str = "ai",
     depth: int = None,
     max_pages: int = None,
-    same_domain_only: bool = None,
-    markdown_only: bool = None
+    same_domain_only: bool = None
 ) -> Dict[str, Any]:
     """
-    Initiate a web crawling request and get a request ID.
+    Initiate a SmartCrawler request for intelligent multi-page web crawling.
+    
+    SmartCrawler supports two modes:
+    - AI Extraction Mode (10 credits per page): Extracts structured data based on your prompt
+    - Markdown Conversion Mode (2 credits per page): Converts pages to clean markdown
 
     Args:
         url: Starting URL to crawl
-        prompt: AI prompt for data extraction (optional, if not provided returns markdown only)
-        cache_website: Whether to cache the website content (optional)
-        depth: Maximum crawling depth (optional)
+        prompt: AI prompt for data extraction (required for AI mode)
+        extraction_mode: "ai" for AI extraction or "markdown" for markdown conversion (default: "ai")
+        depth: Maximum link traversal depth (optional)
         max_pages: Maximum number of pages to crawl (optional)
         same_domain_only: Whether to crawl only within the same domain (optional)
-        markdown_only: Whether to return only markdown content without AI processing (optional)
 
     Returns:
-        Dictionary containing the request ID and status
+        Dictionary containing the request ID for async processing
     """
     if scrapegraph_client is None:
         return {"error": "ScapeGraph client not initialized. Please provide an API key."}
 
     try:
-        return scrapegraph_client.crawl_requester(
+        return scrapegraph_client.smartcrawler_initiate(
             url=url,
             prompt=prompt,
-            cache_website=cache_website,
+            extraction_mode=extraction_mode,
             depth=depth,
             max_pages=max_pages,
-            same_domain_only=same_domain_only,
-            markdown_only=markdown_only
+            same_domain_only=same_domain_only
         )
     except Exception as e:
         return {"error": str(e)}
 
 
-# Add tool for crawl fetcher (smartcrawler step 2)
+# Add tool for fetching SmartCrawler results
 @mcp.tool()
-def crawl_fetcher(request_id: str) -> Dict[str, Any]:
+def smartcrawler_fetch_results(request_id: str) -> Dict[str, Any]:
     """
-    Fetch the results of a crawling request using the request ID.
+    Fetch the results of a SmartCrawler operation.
 
     Args:
-        request_id: The request ID returned by crawl_requester
+        request_id: The request ID returned by smartcrawler_initiate
 
     Returns:
-        Dictionary containing the crawl results or status
+        Dictionary containing the crawled data (structured extraction or markdown)
+        and metadata about processed pages
     """
     if scrapegraph_client is None:
         return {"error": "ScapeGraph client not initialized. Please provide an API key."}
 
     try:
-        return scrapegraph_client.crawl_fetcher(request_id)
+        return scrapegraph_client.smartcrawler_fetch_results(request_id)
     except Exception as e:
         return {"error": str(e)}
 
