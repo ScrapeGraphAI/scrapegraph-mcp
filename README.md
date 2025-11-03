@@ -491,6 +491,7 @@ Special thanks to [tomekkorbak](https://github.com/tomekkorbak) for his implemen
 - [FastMCP Framework](https://github.com/jlowin/fastmcp) - Framework used by this server
 - [MCP Inspector](https://github.com/modelcontextprotocol/inspector) - Testing tool
 - [Smithery](https://smithery.ai/server/@ScrapeGraphAI/scrapegraph-mcp) - MCP server distribution
+- mcp-name: io.github.ScrapeGraphAI/scrapegraph-mcp"
 
 ### AI Assistant Integration
 - [Claude Desktop](https://claude.ai/desktop) - Desktop app with MCP support
