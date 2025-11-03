@@ -1,13 +1,5 @@
 # ScrapeGraph MCP Server
 
-![ScrapeGraph Smithery Integration](assets/sgai_smithery.png)
-<a href="https://glama.ai/mcp/servers/37us0q2tr6">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/37us0q2tr6/badge" alt="ScrapeGraph Server MCP server" style="display: inline-block;"/>
-</a>
-<a href="https://mseep.ai/app/scrapegraphai-scrapegraph-mcp">
-  <img src="https://mseep.net/pr/scrapegraphai-scrapegraph-mcp-badge.png" alt="MseeP.ai Security Assessment Badge" style="display: inline-block;"/>
-</a>
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![smithery badge](https://smithery.ai/badge/@ScrapeGraphAI/scrapegraph-mcp)](https://smithery.ai/server/@ScrapeGraphAI/scrapegraph-mcp)
