@@ -21,7 +21,7 @@
           "isRequired": false,
           "format": "string",
           "isSecret": true,
-          "name": "SCRAPEGRAPH_API_KEY"
+          "name": "SGAI_API_KEY"
         }
       ]
     }

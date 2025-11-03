@@ -306,8 +306,8 @@ class ScapeGraphClient:
 # Pydantic configuration schema for Smithery
 class ConfigSchema(BaseModel):
     scrapegraph_api_key: Optional[str] = Field(
-        default=None, 
-        description="Your Scrapegraph API key (optional - can also be set via SCRAPEGRAPH_API_KEY environment variable)"
+        default=None,
+        description="Your Scrapegraph API key (optional - can also be set via SGAI_API_KEY environment variable)"
     )
 
 
@@ -329,14 +329,14 @@ def get_api_key(ctx: Context) -> str:
     
     # If not in config, try environment variable
     if not api_key:
-        api_key = os.getenv('SCRAPEGRAPH_API_KEY')
-    
+        api_key = os.getenv('SGAI_API_KEY')
+
     # If still no API key found, raise error
     if not api_key:
         raise ValueError(
             "ScapeGraph API key is required. Please provide it either:\n"
             "1. In the MCP server configuration as 'scrapegraph_api_key'\n"
-            "2. As an environment variable 'SCRAPEGRAPH_API_KEY'"
+            "2. As an environment variable 'SGAI_API_KEY'"
         )
     
     return api_key
@@ -501,7 +501,7 @@ steps: ["Find search box", "Enter search term", "Submit form", "Extract results"
 ## 🔧 Configuration
 
 Set your API key via:
-- Environment variable: `SCRAPEGRAPH_API_KEY=your_key_here`
+- Environment variable: `SGAI_API_KEY=your_key_here`
 - MCP configuration: `scrapegraph_api_key: "your_key_here"`
 
 No configuration required - the server works with environment variables!
@@ -540,7 +540,7 @@ def api_status() -> str:
 - **Sitemap**: 1 credit per request
 
 ## Configuration
-- **API Key**: Required (set via SCRAPEGRAPH_API_KEY env var or config)
+- **API Key**: Required (set via SGAI_API_KEY env var or config)
 - **Timeout**: 120 seconds default (configurable)
 - **Rate Limits**: Applied per API key
 
