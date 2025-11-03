@@ -8,6 +8,7 @@
   <img src="https://mseep.net/pr/scrapegraphai-scrapegraph-mcp-badge.png" alt="MseeP.ai Security Assessment Badge" style="display: inline-block;"/>
 </a>
 
+<a href="https://smithery.ai/server/@ScrapeGraphAI/scrapegraph-mcp-test"><img alt="Smithery Badge" src="https://smithery.ai/badge/@ScrapeGraphAI/scrapegraph-mcp-test"></a>
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![smithery badge](https://smithery.ai/badge/@ScrapeGraphAI/scrapegraph-mcp)](https://smithery.ai/server/@ScrapeGraphAI/scrapegraph-mcp)
