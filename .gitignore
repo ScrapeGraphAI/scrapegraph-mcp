@@ -38,4 +38,8 @@ env/
 .env.local
 
 # Logs
-*.log
+*.logdin.com/in/andrea-perozzi-46682830
+
+.mcpregistry_github_token
+.mcpregistry_registry_token
+mcp-publisher
