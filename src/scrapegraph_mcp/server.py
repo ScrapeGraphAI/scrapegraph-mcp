@@ -809,27 +809,7 @@ URL → sitemap (map structure) → smartcrawler (batch process)
 
 
 # Add tool for markdownify
-@mcp.tool(
-    description="Convert a webpage into clean, formatted markdown",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "website_url": {
-                "type": "string",
-                "description": "URL of the webpage to convert to markdown",
-                "format": "uri",
-                "examples": ["https://example.com", "https://docs.python.org/3/"]
-            }
-        },
-        "required": ["website_url"],
-        "additionalProperties": False
-    },
-    annotations={
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True
-    }
-)
+@mcp.tool()
 def markdownify(website_url: str, ctx: Context) -> Dict[str, Any]:
     """
     Convert a webpage into clean, formatted markdown.
@@ -849,48 +829,7 @@ def markdownify(website_url: str, ctx: Context) -> Dict[str, Any]:
 
 
 # Add tool for smartscraper
-@mcp.tool(
-    description="Extract structured data from a webpage using AI",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "user_prompt": {
-                "type": "string",
-                "description": "Instructions for what data to extract from the webpage",
-                "examples": [
-                    "Extract all product names and prices",
-                    "Get contact information and business hours",
-                    "Find all article titles and publication dates"
-                ]
-            },
-            "website_url": {
-                "type": "string",
-                "description": "URL of the webpage to scrape",
-                "format": "uri",
-                "examples": ["https://example.com/products", "https://news.ycombinator.com"]
-            },
-            "number_of_scrolls": {
-                "type": "integer",
-                "description": "Number of infinite scrolls to perform to load more content (optional)",
-                "minimum": 0,
-                "maximum": 10,
-                "default": 0
-            },
-            "markdown_only": {
-                "type": "boolean",
-                "description": "Whether to return only markdown content without AI processing (optional)",
-                "default": false
-            }
-        },
-        "required": ["user_prompt", "website_url"],
-        "additionalProperties": False
-    },
-    annotations={
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True
-    }
-)
+@mcp.tool()
 def smartscraper(
     user_prompt: str, 
     website_url: str,
@@ -919,44 +858,7 @@ def smartscraper(
 
 
 # Add tool for searchscraper
-@mcp.tool(
-    description="Perform AI-powered web searches with structured results",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "user_prompt": {
-                "type": "string",
-                "description": "Search query or instructions for what information to find",
-                "examples": [
-                    "Find the latest AI research papers",
-                    "Search for Python web scraping tutorials",
-                    "Get information about climate change statistics"
-                ]
-            },
-            "num_results": {
-                "type": "integer",
-                "description": "Number of websites to search (optional, default: 3 websites = 30 credits)",
-                "minimum": 1,
-                "maximum": 10,
-                "default": 3
-            },
-            "number_of_scrolls": {
-                "type": "integer",
-                "description": "Number of infinite scrolls to perform on each website (optional)",
-                "minimum": 0,
-                "maximum": 5,
-                "default": 0
-            }
-        },
-        "required": ["user_prompt"],
-        "additionalProperties": False
-    },
-    annotations={
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": False
-    }
-)
+@mcp.tool()
 def searchscraper(
     user_prompt: str,
     ctx: Context,
@@ -983,61 +885,7 @@ def searchscraper(
 
 
 # Add tool for SmartCrawler initiation
-@mcp.tool(
-    description="Initiate intelligent multi-page web crawling with AI extraction or markdown conversion",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "url": {
-                "type": "string",
-                "description": "Starting URL to crawl",
-                "format": "uri",
-                "examples": ["https://example.com", "https://docs.python.org"]
-            },
-            "prompt": {
-                "type": "string",
-                "description": "AI prompt for data extraction (required for AI mode)",
-                "examples": [
-                    "Extract product information including name, price, and description",
-                    "Get all article titles, authors, and publication dates",
-                    "Find contact information and business details"
-                ]
-            },
-            "extraction_mode": {
-                "type": "string",
-                "description": "Extraction mode: 'ai' for AI extraction (10 credits/page) or 'markdown' for markdown conversion (2 credits/page)",
-                "enum": ["ai", "markdown"],
-                "default": "ai"
-            },
-            "depth": {
-                "type": "integer",
-                "description": "Maximum link traversal depth (optional)",
-                "minimum": 1,
-                "maximum": 5,
-                "default": 2
-            },
-            "max_pages": {
-                "type": "integer",
-                "description": "Maximum number of pages to crawl (optional)",
-                "minimum": 1,
-                "maximum": 100,
-                "default": 10
-            },
-            "same_domain_only": {
-                "type": "boolean",
-                "description": "Whether to crawl only within the same domain (optional)",
-                "default": true
-            }
-        },
-        "required": ["url"],
-        "additionalProperties": False
-    },
-    annotations={
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": False
-    }
-)
+@mcp.tool()
 def smartcrawler_initiate(
     url: str,
     ctx: Context,
@@ -1081,27 +929,7 @@ def smartcrawler_initiate(
 
 
 # Add tool for fetching SmartCrawler results
-@mcp.tool(
-    description="Fetch the results of a SmartCrawler operation",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "request_id": {
-                "type": "string",
-                "description": "The request ID returned by smartcrawler_initiate",
-                "pattern": "^[a-zA-Z0-9-_]+$",
-                "examples": ["req_123abc", "crawl-456def"]
-            }
-        },
-        "required": ["request_id"],
-        "additionalProperties": False
-    },
-    annotations={
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True
-    }
-)
+@mcp.tool()
 def smartcrawler_fetch_results(request_id: str, ctx: Context) -> Dict[str, Any]:
     """
     Fetch the results of a SmartCrawler operation.
@@ -1122,32 +950,7 @@ def smartcrawler_fetch_results(request_id: str, ctx: Context) -> Dict[str, Any]:
 
 
 # Add tool for basic scrape
-@mcp.tool(
-    description="Fetch page content for a URL",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "website_url": {
-                "type": "string",
-                "description": "URL to scrape",
-                "format": "uri",
-                "examples": ["https://example.com", "https://news.ycombinator.com"]
-            },
-            "render_heavy_js": {
-                "type": "boolean",
-                "description": "Whether to render heavy JavaScript (optional, may increase processing time)",
-                "default": false
-            }
-        },
-        "required": ["website_url"],
-        "additionalProperties": False
-    },
-    annotations={
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True
-    }
-)
+@mcp.tool()
 def scrape(website_url: str, ctx: Context, render_heavy_js: Optional[bool] = None) -> Dict[str, Any]:
     """
     Fetch page content for a URL.
@@ -1167,27 +970,7 @@ def scrape(website_url: str, ctx: Context, render_heavy_js: Optional[bool] = Non
 
 
 # Add tool for sitemap extraction
-@mcp.tool(
-    description="Extract sitemap for a website",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "website_url": {
-                "type": "string",
-                "description": "Base website URL to extract sitemap from",
-                "format": "uri",
-                "examples": ["https://example.com", "https://docs.python.org"]
-            }
-        },
-        "required": ["website_url"],
-        "additionalProperties": False
-    },
-    annotations={
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": True
-    }
-)
+@mcp.tool()
 def sitemap(website_url: str, ctx: Context) -> Dict[str, Any]:
     """
     Extract sitemap for a website.
@@ -1206,71 +989,7 @@ def sitemap(website_url: str, ctx: Context) -> Dict[str, Any]:
 
 
 # Add tool for Agentic Scraper (no live session/browser interaction)
-@mcp.tool(
-    description="Run the Agentic Scraper workflow with AI-powered automation",
-    input_schema={
-        "type": "object",
-        "properties": {
-            "url": {
-                "type": "string",
-                "description": "Target website URL to scrape",
-                "format": "uri",
-                "examples": ["https://example.com", "https://ecommerce-site.com/products"]
-            },
-            "user_prompt": {
-                "type": "string",
-                "description": "Instructions for what to do or extract (optional)",
-                "examples": [
-                    "Navigate to the products page and extract all product details",
-                    "Find the contact form and extract all available contact methods",
-                    "Search for pricing information and extract all plans"
-                ]
-            },
-            "output_schema": {
-                "oneOf": [
-                    {"type": "string", "description": "JSON string representing the desired output schema"},
-                    {"type": "object", "description": "Object representing the desired output schema"}
-                ],
-                "description": "Desired structured output schema (optional)"
-            },
-            "steps": {
-                "oneOf": [
-                    {"type": "string", "description": "Single step or JSON array string of steps"},
-                    {"type": "array", "items": {"type": "string"}, "description": "Array of high-level steps for the agent"}
-                ],
-                "description": "High-level steps/instructions for the agent (optional)",
-                "examples": [
-                    ["Navigate to products", "Extract product info", "Get pricing"],
-                    "Click on the menu and find contact information"
-                ]
-            },
-            "ai_extraction": {
-                "type": "boolean",
-                "description": "Whether to enable AI extraction mode (optional)",
-                "default": true
-            },
-            "persistent_session": {
-                "type": "boolean",
-                "description": "Whether to keep session alive between steps (optional)",
-                "default": false
-            },
-            "timeout_seconds": {
-                "type": "number",
-                "description": "Per-request timeout override in seconds (optional)",
-                "minimum": 10,
-                "maximum": 300,
-                "default": 120
-            }
-        },
-        "required": ["url"],
-        "additionalProperties": False
-    },
-    annotations={
-        "readOnlyHint": True,
-        "destructiveHint": False,
-        "idempotentHint": False
-    }
-)
+@mcp.tool()
 def agentic_scrapper(
     url: str,
     ctx: Context,
