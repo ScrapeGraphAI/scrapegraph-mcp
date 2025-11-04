@@ -62,32 +62,59 @@ class ScapeGraphClient:
 
         return response.json()
 
-    def smartscraper(self, user_prompt: str, website_url: str, number_of_scrolls: int = None, markdown_only: bool = None) -> Dict[str, Any]:
+    def smartscraper(
+        self,
+        user_prompt: str,
+        website_url: str = None,
+        website_html: str = None,
+        website_markdown: str = None,
+        output_schema: Dict[str, Any] = None,
+        number_of_scrolls: int = None,
+        total_pages: int = None,
+        render_heavy_js: bool = None,
+        stealth: bool = None
+    ) -> Dict[str, Any]:
         """
         Extract structured data from a webpage using AI.
 
         Args:
             user_prompt: Instructions for what data to extract
-            website_url: URL of the webpage to scrape
-            number_of_scrolls: Number of infinite scrolls to perform (optional)
-            markdown_only: Whether to return only markdown content without AI processing (optional)
+            website_url: URL of the webpage to scrape (mutually exclusive with website_html and website_markdown)
+            website_html: HTML content to process locally (mutually exclusive with website_url and website_markdown, max 2MB)
+            website_markdown: Markdown content to process locally (mutually exclusive with website_url and website_html, max 2MB)
+            output_schema: JSON schema defining expected output structure (optional)
+            number_of_scrolls: Number of infinite scrolls to perform (0-50, default 0)
+            total_pages: Number of pages to process for pagination (1-100, default 1)
+            render_heavy_js: Enable heavy JavaScript rendering for dynamic pages (default false)
+            stealth: Enable stealth mode to avoid bot detection (default false)
 
         Returns:
-            Dictionary containing the extracted data or markdown content
+            Dictionary containing the extracted data
         """
         url = f"{self.BASE_URL}/smartscraper"
-        data = {
-            "user_prompt": user_prompt,
-            "website_url": website_url
-        }
-        
-        # Add number_of_scrolls to the request if provided
+        data = {"user_prompt": user_prompt}
+
+        # Add input source (mutually exclusive)
+        if website_url is not None:
+            data["website_url"] = website_url
+        elif website_html is not None:
+            data["website_html"] = website_html
+        elif website_markdown is not None:
+            data["website_markdown"] = website_markdown
+        else:
+            raise ValueError("Must provide one of: website_url, website_html, or website_markdown")
+
+        # Add optional parameters
+        if output_schema is not None:
+            data["output_schema"] = output_schema
         if number_of_scrolls is not None:
             data["number_of_scrolls"] = number_of_scrolls
-            
-        # Add markdown_only to the request if provided
-        if markdown_only is not None:
-            data["markdown_only"] = markdown_only
+        if total_pages is not None:
+            data["total_pages"] = total_pages
+        if render_heavy_js is not None:
+            data["render_heavy_js"] = render_heavy_js
+        if stealth is not None:
+            data["stealth"] = stealth
 
         response = self.client.post(url, headers=self.headers, json=data)
 
@@ -836,33 +863,68 @@ def markdownify(website_url: str, ctx: Context) -> Dict[str, Any]:
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
 def smartscraper(
     user_prompt: str,
-    website_url: str,
     ctx: Context,
+    website_url: Optional[str] = None,
+    website_html: Optional[str] = None,
+    website_markdown: Optional[str] = None,
+    output_schema: Optional[Union[str, Dict[str, Any]]] = None,
     number_of_scrolls: Optional[int] = None,
-    markdown_only: Optional[bool] = None
+    total_pages: Optional[int] = None,
+    render_heavy_js: Optional[bool] = None,
+    stealth: Optional[bool] = None
 ) -> Dict[str, Any]:
     """
-    Extract structured data from a webpage using AI-powered extraction.
+    Extract structured data from a webpage, HTML, or markdown using AI-powered extraction.
 
     This tool uses advanced AI to understand your natural language prompt and extract specific
-    structured data from any webpage. Ideal for extracting product information, contact details,
-    article metadata, or any structured content. Supports infinite scrolling for dynamic content.
-    Costs 10 credits per page. Read-only operation with no side effects.
+    structured data from web content. Supports three input modes: URL scraping, local HTML processing,
+    or local markdown processing. Ideal for extracting product information, contact details,
+    article metadata, or any structured content. Costs 10 credits per page. Read-only operation.
 
     Args:
-        user_prompt: Natural language instructions describing what data to extract from the webpage. Be specific about the fields you want. Example: 'Extract product name, price, description, and availability status'
-        website_url: The complete URL of the webpage to scrape. Must include protocol (http:// or https://). Example: https://example.com/products/item
-        number_of_scrolls: Number of infinite scrolls to perform on the page before scraping (useful for dynamically loaded content). Default is 0. Example: 3 for pages with lazy-loading
-        markdown_only: If true, returns only the markdown content of the page without AI processing. Useful for simple content extraction. Default is false (AI extraction enabled)
+        user_prompt: Natural language instructions describing what data to extract. Be specific about the fields you want. Example: 'Extract product name, price, description, and availability status'
+        website_url: The complete URL of the webpage to scrape (mutually exclusive with website_html and website_markdown). Must include protocol. Example: https://example.com/products/item
+        website_html: Raw HTML content to process locally (mutually exclusive with website_url and website_markdown, max 2MB). Useful for processing pre-fetched or generated HTML
+        website_markdown: Markdown content to process locally (mutually exclusive with website_url and website_html, max 2MB). Useful for extracting from markdown documents
+        output_schema: JSON schema dict or JSON string defining the expected output structure. Example: {'type': 'object', 'properties': {'title': {'type': 'string'}, 'price': {'type': 'number'}}}
+        number_of_scrolls: Number of infinite scrolls to perform before scraping (0-50, default 0). Useful for dynamically loaded content. Example: 3 for pages with lazy-loading
+        total_pages: Number of pages to process for pagination (1-100, default 1). Useful for multi-page content
+        render_heavy_js: Enable heavy JavaScript rendering for Single Page Applications and dynamic sites (default false). Increases processing time but captures client-side rendered content
+        stealth: Enable stealth mode to avoid bot detection (default false). Useful for sites with anti-scraping measures
 
     Returns:
-        Dictionary containing the extracted data in structured format matching your prompt requirements,
-        or markdown content if markdown_only is enabled
+        Dictionary containing the extracted data in structured format matching your prompt requirements
+        and optional output_schema
     """
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.smartscraper(user_prompt, website_url, number_of_scrolls, markdown_only)
+
+        # Parse output_schema if it's a JSON string
+        normalized_schema: Optional[Dict[str, Any]] = None
+        if isinstance(output_schema, dict):
+            normalized_schema = output_schema
+        elif isinstance(output_schema, str):
+            try:
+                parsed_schema = json.loads(output_schema)
+                if isinstance(parsed_schema, dict):
+                    normalized_schema = parsed_schema
+                else:
+                    return {"error": "output_schema must be a JSON object"}
+            except json.JSONDecodeError as e:
+                return {"error": f"Invalid JSON for output_schema: {str(e)}"}
+
+        return client.smartscraper(
+            user_prompt=user_prompt,
+            website_url=website_url,
+            website_html=website_html,
+            website_markdown=website_markdown,
+            output_schema=normalized_schema,
+            number_of_scrolls=number_of_scrolls,
+            total_pages=total_pages,
+            render_heavy_js=render_heavy_js,
+            stealth=stealth
+        )
     except Exception as e:
         return {"error": str(e)}
 
