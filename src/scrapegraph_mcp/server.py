@@ -311,122 +311,6 @@ class ConfigSchema(BaseModel):
     )
 
 
-# Pydantic input models for tools with detailed parameter descriptions
-class MarkdownifyInput(BaseModel):
-    website_url: str = Field(
-        description="The complete URL of the webpage to convert to markdown format. Must include protocol (http:// or https://). Example: https://example.com/page"
-    )
-
-
-class SmartscraperInput(BaseModel):
-    user_prompt: str = Field(
-        description="Natural language instructions describing what data to extract from the webpage. Be specific about the fields you want. Example: 'Extract product name, price, description, and availability status'"
-    )
-    website_url: str = Field(
-        description="The complete URL of the webpage to scrape. Must include protocol (http:// or https://). Example: https://example.com/products/item"
-    )
-    number_of_scrolls: Optional[int] = Field(
-        default=None,
-        description="Number of infinite scrolls to perform on the page before scraping (useful for dynamically loaded content). Default is 0. Example: 3 for pages with lazy-loading"
-    )
-    markdown_only: Optional[bool] = Field(
-        default=None,
-        description="If true, returns only the markdown content of the page without AI processing. Useful for simple content extraction. Default is false (AI extraction enabled)"
-    )
-
-
-class SearchscraperInput(BaseModel):
-    user_prompt: str = Field(
-        description="Search query or natural language instructions for what information to find across the web. Example: 'Find latest AI research papers published in 2024 with author names and abstracts'"
-    )
-    num_results: Optional[int] = Field(
-        default=None,
-        description="Number of websites to search and extract data from. Default is 3 websites. Note: Each website costs 10 credits, so 3 websites = 30 credits"
-    )
-    number_of_scrolls: Optional[int] = Field(
-        default=None,
-        description="Number of infinite scrolls to perform on each searched webpage before extraction. Default is 0. Useful for pages with dynamically loaded content"
-    )
-
-
-class SmartcrawlerInitiateInput(BaseModel):
-    url: str = Field(
-        description="The starting URL to begin crawling from. The crawler will discover and process linked pages from this starting point. Must include protocol. Example: https://docs.example.com"
-    )
-    prompt: Optional[str] = Field(
-        default=None,
-        description="AI prompt for data extraction (REQUIRED when extraction_mode is 'ai', ignored for 'markdown' mode). Describe what data to extract from each page. Example: 'Extract API endpoint name, method, parameters, and description'"
-    )
-    extraction_mode: str = Field(
-        default="ai",
-        description="Extraction mode: 'ai' for AI-powered structured data extraction (10 credits/page) or 'markdown' for simple markdown conversion (2 credits/page). Default is 'ai'"
-    )
-    depth: Optional[int] = Field(
-        default=None,
-        description="Maximum depth of link traversal from the starting URL. Depth 1 means only pages linked from the start URL. Default is unlimited depth. Example: 2"
-    )
-    max_pages: Optional[int] = Field(
-        default=None,
-        description="Maximum number of pages to crawl in total. Use this to control costs and scope. Default is unlimited. Recommended: Start with 10-20 for testing. Example: 50"
-    )
-    same_domain_only: Optional[bool] = Field(
-        default=None,
-        description="If true, only crawls pages within the same domain as the starting URL. Prevents following external links. Default is true. Set false to crawl external links"
-    )
-
-
-class SmartcrawlerFetchResultsInput(BaseModel):
-    request_id: str = Field(
-        description="The unique request ID returned by smartcrawler_initiate. Use this to retrieve the crawling results. Keep polling until status is 'completed'. Example: 'req_abc123xyz'"
-    )
-
-
-class ScrapeInput(BaseModel):
-    website_url: str = Field(
-        description="The complete URL of the webpage to scrape. Must include protocol (http:// or https://). Returns raw page content. Example: https://example.com/page"
-    )
-    render_heavy_js: Optional[bool] = Field(
-        default=None,
-        description="If true, enables full JavaScript rendering for pages with heavy client-side rendering (SPAs, React apps, etc.). Increases processing time but captures dynamic content. Default is false"
-    )
-
-
-class SitemapInput(BaseModel):
-    website_url: str = Field(
-        description="The base URL of the website to extract sitemap from. Returns discovered URLs and site structure. Must include protocol. Example: https://example.com"
-    )
-
-
-class AgenticScrapperInput(BaseModel):
-    url: str = Field(
-        description="The target website URL where the agentic scraping workflow should start. Must include protocol. Example: https://example.com/search"
-    )
-    user_prompt: Optional[str] = Field(
-        default=None,
-        description="High-level instructions for what the agent should accomplish on the website. Example: 'Navigate to the search page, search for laptops, and extract the top 5 results with prices'"
-    )
-    output_schema: Optional[Union[str, Dict[str, Any]]] = Field(
-        default=None,
-        description="Desired output structure as a JSON schema dict or JSON string. Defines the format of extracted data. Example: {'type': 'object', 'properties': {'title': {'type': 'string'}, 'price': {'type': 'number'}}}"
-    )
-    steps: Optional[Union[str, List[str]]] = Field(
-        default=None,
-        description="Step-by-step instructions for the agent as a list of strings or JSON array string. Example: ['Click search button', 'Enter search term', 'Wait for results', 'Extract data']"
-    )
-    ai_extraction: Optional[bool] = Field(
-        default=None,
-        description="Whether to enable AI-powered extraction mode for intelligent data parsing. Default is true. Set false for simpler extraction"
-    )
-    persistent_session: Optional[bool] = Field(
-        default=None,
-        description="Whether to maintain session state between steps (keeps cookies, login state, etc.). Useful for authenticated workflows. Default is false"
-    )
-    timeout_seconds: Optional[float] = Field(
-        default=None,
-        description="Maximum time in seconds to wait for the entire workflow to complete. Default is 120 seconds. Increase for complex workflows. Example: 300.0"
-    )
-
-
 def get_api_key(ctx: Context) -> str:
     """
     Get the API key from config or environment variable.
@@ -926,7 +810,7 @@ URL → sitemap (map structure) → smartcrawler (batch process)
 
 # Add tool for markdownify
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
-def markdownify(params: MarkdownifyInput, ctx: Context) -> Dict[str, Any]:
+def markdownify(website_url: str, ctx: Context) -> Dict[str, Any]:
     """
     Convert a webpage into clean, formatted markdown.
 
@@ -934,20 +818,29 @@ def markdownify(params: MarkdownifyInput, ctx: Context) -> Dict[str, Any]:
     Useful for extracting content from documentation, articles, and web pages for further processing.
     Costs 2 credits per page. Read-only operation with no side effects.
 
+    Args:
+        website_url: The complete URL of the webpage to convert to markdown format. Must include protocol (http:// or https://). Example: https://example.com/page
+
     Returns:
         Dictionary containing the markdown result with the page content in markdown format
     """
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.markdownify(params.website_url)
+        return client.markdownify(website_url)
     except Exception as e:
         return {"error": str(e)}
 
 
 # Add tool for smartscraper
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
-def smartscraper(params: SmartscraperInput, ctx: Context) -> Dict[str, Any]:
+def smartscraper(
+    user_prompt: str,
+    website_url: str,
+    ctx: Context,
+    number_of_scrolls: Optional[int] = None,
+    markdown_only: Optional[bool] = None
+) -> Dict[str, Any]:
     """
     Extract structured data from a webpage using AI-powered extraction.
 
@@ -956,6 +849,12 @@ def smartscraper(params: SmartscraperInput, ctx: Context) -> Dict[str, Any]:
     article metadata, or any structured content. Supports infinite scrolling for dynamic content.
     Costs 10 credits per page. Read-only operation with no side effects.
 
+    Args:
+        user_prompt: Natural language instructions describing what data to extract from the webpage. Be specific about the fields you want. Example: 'Extract product name, price, description, and availability status'
+        website_url: The complete URL of the webpage to scrape. Must include protocol (http:// or https://). Example: https://example.com/products/item
+        number_of_scrolls: Number of infinite scrolls to perform on the page before scraping (useful for dynamically loaded content). Default is 0. Example: 3 for pages with lazy-loading
+        markdown_only: If true, returns only the markdown content of the page without AI processing. Useful for simple content extraction. Default is false (AI extraction enabled)
+
     Returns:
         Dictionary containing the extracted data in structured format matching your prompt requirements,
         or markdown content if markdown_only is enabled
@@ -963,19 +862,19 @@ def smartscraper(params: SmartscraperInput, ctx: Context) -> Dict[str, Any]:
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.smartscraper(
-            params.user_prompt,
-            params.website_url,
-            params.number_of_scrolls,
-            params.markdown_only
-        )
+        return client.smartscraper(user_prompt, website_url, number_of_scrolls, markdown_only)
     except Exception as e:
         return {"error": str(e)}
 
 
 # Add tool for searchscraper
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": False})
-def searchscraper(params: SearchscraperInput, ctx: Context) -> Dict[str, Any]:
+def searchscraper(
+    user_prompt: str,
+    ctx: Context,
+    num_results: Optional[int] = None,
+    number_of_scrolls: Optional[int] = None
+) -> Dict[str, Any]:
     """
     Perform AI-powered web searches with structured data extraction.
 
@@ -984,6 +883,11 @@ def searchscraper(params: SearchscraperInput, ctx: Context) -> Dict[str, Any]:
     from multiple sources. Each website searched costs 10 credits (default 3 websites = 30 credits).
     Read-only operation but results may vary over time (non-idempotent).
 
+    Args:
+        user_prompt: Search query or natural language instructions for what information to find across the web. Example: 'Find latest AI research papers published in 2024 with author names and abstracts'
+        num_results: Number of websites to search and extract data from. Default is 3 websites. Note: Each website costs 10 credits, so 3 websites = 30 credits
+        number_of_scrolls: Number of infinite scrolls to perform on each searched webpage before extraction. Default is 0. Useful for pages with dynamically loaded content
+
     Returns:
         Dictionary containing structured search results with extracted data from multiple websites,
         including reference URLs for each source
@@ -991,18 +895,22 @@ def searchscraper(params: SearchscraperInput, ctx: Context) -> Dict[str, Any]:
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.searchscraper(
-            params.user_prompt,
-            params.num_results,
-            params.number_of_scrolls
-        )
+        return client.searchscraper(user_prompt, num_results, number_of_scrolls)
     except Exception as e:
         return {"error": str(e)}
 
 
 # Add tool for SmartCrawler initiation
 @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
-def smartcrawler_initiate(params: SmartcrawlerInitiateInput, ctx: Context) -> Dict[str, Any]:
+def smartcrawler_initiate(
+    url: str,
+    ctx: Context,
+    prompt: Optional[str] = None,
+    extraction_mode: str = "ai",
+    depth: Optional[int] = None,
+    max_pages: Optional[int] = None,
+    same_domain_only: Optional[bool] = None
+) -> Dict[str, Any]:
     """
     Initiate an asynchronous multi-page web crawling operation with AI extraction or markdown conversion.
 
@@ -1015,6 +923,14 @@ def smartcrawler_initiate(params: SmartcrawlerInitiateInput, ctx: Context) -> Di
     - AI Extraction Mode: Extracts structured data based on your prompt from every crawled page
     - Markdown Conversion Mode: Converts each page to clean markdown format
 
+    Args:
+        url: The starting URL to begin crawling from. The crawler will discover and process linked pages from this starting point. Must include protocol. Example: https://docs.example.com
+        prompt: AI prompt for data extraction (REQUIRED when extraction_mode is 'ai', ignored for 'markdown' mode). Describe what data to extract from each page. Example: 'Extract API endpoint name, method, parameters, and description'
+        extraction_mode: Extraction mode: 'ai' for AI-powered structured data extraction (10 credits/page) or 'markdown' for simple markdown conversion (2 credits/page). Default is 'ai'
+        depth: Maximum depth of link traversal from the starting URL. Depth 1 means only pages linked from the start URL. Default is unlimited depth. Example: 2
+        max_pages: Maximum number of pages to crawl in total. Use this to control costs and scope. Default is unlimited. Recommended: Start with 10-20 for testing. Example: 50
+        same_domain_only: If true, only crawls pages within the same domain as the starting URL. Prevents following external links. Default is true. Set false to crawl external links
+
     Returns:
         Dictionary containing the unique request_id for polling results with smartcrawler_fetch_results.
         Keep polling until status is 'completed'
@@ -1023,12 +939,12 @@ def smartcrawler_initiate(params: SmartcrawlerInitiateInput, ctx: Context) -> Di
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
         return client.smartcrawler_initiate(
-            url=params.url,
-            prompt=params.prompt,
-            extraction_mode=params.extraction_mode,
-            depth=params.depth,
-            max_pages=params.max_pages,
-            same_domain_only=params.same_domain_only
+            url=url,
+            prompt=prompt,
+            extraction_mode=extraction_mode,
+            depth=depth,
+            max_pages=max_pages,
+            same_domain_only=same_domain_only
         )
     except Exception as e:
         return {"error": str(e)}
@@ -1036,7 +952,7 @@ def smartcrawler_initiate(params: SmartcrawlerInitiateInput, ctx: Context) -> Di
 
 # Add tool for fetching SmartCrawler results
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
-def smartcrawler_fetch_results(params: SmartcrawlerFetchResultsInput, ctx: Context) -> Dict[str, Any]:
+def smartcrawler_fetch_results(request_id: str, ctx: Context) -> Dict[str, Any]:
     """
     Retrieve the results of an asynchronous SmartCrawler operation.
 
@@ -1044,6 +960,9 @@ def smartcrawler_fetch_results(params: SmartcrawlerFetchResultsInput, ctx: Conte
     The crawl request processes asynchronously in the background. Keep polling this endpoint until
     the status field indicates 'completed'. While processing, you'll receive status updates.
     Read-only operation that safely retrieves results without side effects.
+
+    Args:
+        request_id: The unique request ID returned by smartcrawler_initiate. Use this to retrieve the crawling results. Keep polling until status is 'completed'. Example: 'req_abc123xyz'
 
     Returns:
         Dictionary containing:
@@ -1055,14 +974,18 @@ def smartcrawler_fetch_results(params: SmartcrawlerFetchResultsInput, ctx: Conte
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.smartcrawler_fetch_results(params.request_id)
+        return client.smartcrawler_fetch_results(request_id)
     except Exception as e:
         return {"error": str(e)}
 
 
 # Add tool for basic scrape
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
-def scrape(params: ScrapeInput, ctx: Context) -> Dict[str, Any]:
+def scrape(
+    website_url: str,
+    ctx: Context,
+    render_heavy_js: Optional[bool] = None
+) -> Dict[str, Any]:
     """
     Fetch raw page content from any URL with optional JavaScript rendering.
 
@@ -1071,6 +994,10 @@ def scrape(params: ScrapeInput, ctx: Context) -> Dict[str, Any]:
     heavy client-side rendering. Lower cost than AI extraction (1 credit/page).
     Read-only operation with no side effects.
 
+    Args:
+        website_url: The complete URL of the webpage to scrape. Must include protocol (http:// or https://). Returns raw page content. Example: https://example.com/page
+        render_heavy_js: If true, enables full JavaScript rendering for pages with heavy client-side rendering (SPAs, React apps, etc.). Increases processing time but captures dynamic content. Default is false
+
     Returns:
         Dictionary containing the raw HTML content of the page. Enable render_heavy_js for
         dynamic content that requires JavaScript execution
@@ -1078,10 +1005,7 @@ def scrape(params: ScrapeInput, ctx: Context) -> Dict[str, Any]:
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.scrape(
-            website_url=params.website_url,
-            render_heavy_js=params.render_heavy_js
-        )
+        return client.scrape(website_url=website_url, render_heavy_js=render_heavy_js)
     except httpx.HTTPError as http_err:
         return {"error": str(http_err)}
     except ValueError as val_err:
@@ -1090,7 +1014,7 @@ def scrape(params: ScrapeInput, ctx: Context) -> Dict[str, Any]:
 
 # Add tool for sitemap extraction
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
-def sitemap(params: SitemapInput, ctx: Context) -> Dict[str, Any]:
+def sitemap(website_url: str, ctx: Context) -> Dict[str, Any]:
     """
     Extract and discover the complete sitemap structure of any website.
 
@@ -1099,6 +1023,9 @@ def sitemap(params: SitemapInput, ctx: Context) -> Dict[str, Any]:
     crawling or for discovering all available content. Very cost-effective at 1 credit per request.
     Read-only operation with no side effects.
 
+    Args:
+        website_url: The base URL of the website to extract sitemap from. Returns discovered URLs and site structure. Must include protocol. Example: https://example.com
+
     Returns:
         Dictionary containing the discovered URLs, site structure, and hierarchy. Includes all
         accessible pages, subdomains, and resource paths found on the website
@@ -1106,7 +1033,7 @@ def sitemap(params: SitemapInput, ctx: Context) -> Dict[str, Any]:
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.sitemap(website_url=params.website_url)
+        return client.sitemap(website_url=website_url)
     except httpx.HTTPError as http_err:
         return {"error": str(http_err)}
     except ValueError as val_err:
@@ -1115,7 +1042,16 @@ def sitemap(params: SitemapInput, ctx: Context) -> Dict[str, Any]:
 
 # Add tool for Agentic Scraper (no live session/browser interaction)
 @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
-def agentic_scrapper(params: AgenticScrapperInput, ctx: Context) -> Dict[str, Any]:
+def agentic_scrapper(
+    url: str,
+    ctx: Context,
+    user_prompt: Optional[str] = None,
+    output_schema: Optional[Union[str, Dict[str, Any]]] = None,
+    steps: Optional[Union[str, List[str]]] = None,
+    ai_extraction: Optional[bool] = None,
+    persistent_session: Optional[bool] = None,
+    timeout_seconds: Optional[float] = None
+) -> Dict[str, Any]:
     """
     Execute complex multi-step web scraping workflows with AI-powered automation.
 
@@ -1128,31 +1064,40 @@ def agentic_scrapper(params: AgenticScrapperInput, ctx: Context) -> Dict[str, An
     The agent accepts flexible input formats for steps (list or JSON string) and output_schema
     (dict or JSON string) to accommodate different client implementations.
 
+    Args:
+        url: The target website URL where the agentic scraping workflow should start. Must include protocol. Example: https://example.com/search
+        user_prompt: High-level instructions for what the agent should accomplish on the website. Example: 'Navigate to the search page, search for laptops, and extract the top 5 results with prices'
+        output_schema: Desired output structure as a JSON schema dict or JSON string. Defines the format of extracted data. Example: {'type': 'object', 'properties': {'title': {'type': 'string'}, 'price': {'type': 'number'}}}
+        steps: Step-by-step instructions for the agent as a list of strings or JSON array string. Example: ['Click search button', 'Enter search term', 'Wait for results', 'Extract data']
+        ai_extraction: Whether to enable AI-powered extraction mode for intelligent data parsing. Default is true. Set false for simpler extraction
+        persistent_session: Whether to maintain session state between steps (keeps cookies, login state, etc.). Useful for authenticated workflows. Default is false
+        timeout_seconds: Maximum time in seconds to wait for the entire workflow to complete. Default is 120 seconds. Increase for complex workflows. Example: 300.0
+
     Returns:
         Dictionary containing the extracted data matching the specified output_schema, along with
         execution metadata, visited URLs, and action logs from the automated workflow
     """
     # Normalize inputs to handle flexible formats from different MCP clients
     normalized_steps: Optional[List[str]] = None
-    if isinstance(params.steps, list):
-        normalized_steps = params.steps
-    elif isinstance(params.steps, str):
+    if isinstance(steps, list):
+        normalized_steps = steps
+    elif isinstance(steps, str):
         parsed_steps: Optional[Any] = None
         try:
-            parsed_steps = json.loads(params.steps)
+            parsed_steps = json.loads(steps)
         except json.JSONDecodeError:
             parsed_steps = None
         if isinstance(parsed_steps, list):
             normalized_steps = parsed_steps
         else:
-            normalized_steps = [params.steps]
+            normalized_steps = [steps]
 
     normalized_schema: Optional[Dict[str, Any]] = None
-    if isinstance(params.output_schema, dict):
-        normalized_schema = params.output_schema
-    elif isinstance(params.output_schema, str):
+    if isinstance(output_schema, dict):
+        normalized_schema = output_schema
+    elif isinstance(output_schema, str):
         try:
-            parsed_schema = json.loads(params.output_schema)
+            parsed_schema = json.loads(output_schema)
             if isinstance(parsed_schema, dict):
                 normalized_schema = parsed_schema
             else:
@@ -1164,13 +1109,13 @@ def agentic_scrapper(params: AgenticScrapperInput, ctx: Context) -> Dict[str, An
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
         return client.agentic_scrapper(
-            url=params.url,
-            user_prompt=params.user_prompt,
+            url=url,
+            user_prompt=user_prompt,
             output_schema=normalized_schema,
             steps=normalized_steps,
-            ai_extraction=params.ai_extraction,
-            persistent_session=params.persistent_session,
-            timeout_seconds=params.timeout_seconds,
+            ai_extraction=ai_extraction,
+            persistent_session=persistent_session,
+            timeout_seconds=timeout_seconds,
         )
     except httpx.TimeoutException as timeout_err:
         return {"error": f"Request timed out: {str(timeout_err)}"}
