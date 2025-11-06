@@ -10,6 +10,7 @@ This server exposes methods to use ScapeGraph's AI-powered web scraping services
 """
 
 import json
+import logging
 import os
 from typing import Any, Dict, Optional, List, Union
 
@@ -17,6 +18,13 @@ import httpx
 from fastmcp import Context, FastMCP
 from smithery.decorators import smithery
 from pydantic import BaseModel, Field
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
 class ScapeGraphClient:
@@ -351,26 +359,63 @@ def get_api_key(ctx: Context) -> str:
     Raises:
         ValueError: If no API key is found
     """
-    # Try to get from config first
-    api_key = getattr(ctx.session_config, 'scrapegraph_api_key', None)
-    
-    # If not in config, try environment variable
-    if not api_key:
-        api_key = os.getenv('SGAI_API_KEY')
+    try:
+        logger.info(f"Getting API key. Context type: {type(ctx)}")
+        logger.info(f"Context has session_config: {hasattr(ctx, 'session_config')}")
+        
+        # Try to get from config first, but handle cases where session_config might be None
+        api_key = None
+        if hasattr(ctx, 'session_config') and ctx.session_config is not None:
+            logger.info(f"Session config type: {type(ctx.session_config)}")
+            api_key = getattr(ctx.session_config, 'scrapegraph_api_key', None)
+            logger.info(f"API key from config: {'***' if api_key else 'None'}")
+        else:
+            logger.info("No session_config available or session_config is None")
+        
+        # If not in config, try environment variable
+        if not api_key:
+            api_key = os.getenv('SGAI_API_KEY')
+            logger.info(f"API key from env: {'***' if api_key else 'None'}")
 
-    # If still no API key found, raise error
-    if not api_key:
-        raise ValueError(
-            "ScapeGraph API key is required. Please provide it either:\n"
-            "1. In the MCP server configuration as 'scrapegraph_api_key'\n"
-            "2. As an environment variable 'SGAI_API_KEY'"
-        )
+        # If still no API key found, raise error
+        if not api_key:
+            logger.error("No API key found in config or environment")
+            raise ValueError(
+                "ScapeGraph API key is required. Please provide it either:\n"
+                "1. In the MCP server configuration as 'scrapegraph_api_key'\n"
+                "2. As an environment variable 'SGAI_API_KEY'"
+            )
+        
+        logger.info("API key successfully retrieved")
+        return api_key
     
-    return api_key
+    except Exception as e:
+        logger.warning(f"Error getting API key from context: {e}. Falling back to cached method.")
+        # Fallback to cached method if context handling fails
+        return get_cached_api_key()
 
 
 # Create MCP server instance
 mcp = FastMCP("ScapeGraph API MCP Server")
+
+# Global API key cache to handle session issues
+_api_key_cache: Optional[str] = None
+
+def get_cached_api_key() -> str:
+    """Get API key from cache or environment, bypassing session config issues."""
+    global _api_key_cache
+    
+    if _api_key_cache is None:
+        _api_key_cache = os.getenv('SGAI_API_KEY')
+        if _api_key_cache:
+            logger.info("API key loaded from environment variable")
+        else:
+            logger.error("No API key found in environment variable SGAI_API_KEY")
+            raise ValueError(
+                "ScapeGraph API key is required. Please set the SGAI_API_KEY environment variable."
+            )
+    
+    return _api_key_cache
 
 
 # Add prompts to help users interact with the server
@@ -1201,8 +1246,14 @@ def create_server() -> FastMCP:
 
 def main() -> None:
     """Run the ScapeGraph MCP server."""
-    print("Starting ScapeGraph MCP server!")
-    mcp.run(transport="stdio")
+    try:
+        logger.info("Starting ScapeGraph MCP server!")
+        print("Starting ScapeGraph MCP server!")
+        mcp.run(transport="stdio")
+    except Exception as e:
+        logger.error(f"Failed to start MCP server: {e}")
+        print(f"Error starting server: {e}")
+        raise
 
 
 if __name__ == "__main__":
