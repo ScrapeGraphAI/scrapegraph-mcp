@@ -1,2 +1,13 @@
 # Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+
+configSchema:
+  # JSON Schema defining the configuration options for the MCP.
+  type: "object"
+  required: ["scrapegraphApiKey"]
+  properties:
+    scrapegraphApiKey:
+      type: "string"
+      description: "Your Scrapegraph API key"
+
 runtime: "python"

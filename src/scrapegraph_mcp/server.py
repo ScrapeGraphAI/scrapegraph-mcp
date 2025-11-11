@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional, List, Union
 import httpx
 from fastmcp import Context, FastMCP
 from smithery.decorators import smithery
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AliasChoices
 
 # Configure logging
 logging.basicConfig(
@@ -342,7 +342,11 @@ class ScapeGraphClient:
 class ConfigSchema(BaseModel):
     scrapegraph_api_key: Optional[str] = Field(
         default=None,
-        description="Your Scrapegraph API key (optional - can also be set via SGAI_API_KEY environment variable)"
+        description="Your Scrapegraph API key (optional - can also be set via SGAI_API_KEY environment variable)",
+        # Accept both camelCase (from smithery.yaml) and snake_case (internal) for validation,
+        # and serialize back to camelCase to match Smithery expectations.
+        validation_alias=AliasChoices("scrapegraphApiKey", "scrapegraph_api_key"),
+        serialization_alias="scrapegraphApiKey",
     )
 
 
