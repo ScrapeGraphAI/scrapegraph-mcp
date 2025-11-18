@@ -12,7 +12,7 @@ This server exposes methods to use ScapeGraph's AI-powered web scraping services
 import json
 import logging
 import os
-from typing import Any, Dict, Optional, List, Union
+from typing import Any, Dict, Optional, List, Union, Annotated
 
 import httpx
 from fastmcp import Context, FastMCP
@@ -916,7 +916,16 @@ def smartscraper(
     website_url: Optional[str] = None,
     website_html: Optional[str] = None,
     website_markdown: Optional[str] = None,
-    output_schema: Optional[Union[str, Dict[str, Any]]] = None,
+    output_schema: Optional[Annotated[Union[str, Dict[str, Any]], Field(
+        default=None,
+        description="JSON schema dict or JSON string defining the expected output structure",
+        json_schema_extra={
+            "oneOf": [
+                {"type": "string"},
+                {"type": "object"}
+            ]
+        }
+    )]] = None,
     number_of_scrolls: Optional[int] = None,
     total_pages: Optional[int] = None,
     render_heavy_js: Optional[bool] = None,
@@ -1157,8 +1166,26 @@ def agentic_scrapper(
     url: str,
     ctx: Context,
     user_prompt: Optional[str] = None,
-    output_schema: Optional[Union[str, Dict[str, Any]]] = None,
-    steps: Optional[Union[str, List[str]]] = None,
+    output_schema: Optional[Annotated[Union[str, Dict[str, Any]], Field(
+        default=None,
+        description="Desired output structure as a JSON schema dict or JSON string",
+        json_schema_extra={
+            "oneOf": [
+                {"type": "string"},
+                {"type": "object"}
+            ]
+        }
+    )]] = None,
+    steps: Optional[Annotated[Union[str, List[str]], Field(
+        default=None,
+        description="Step-by-step instructions for the agent as a list of strings or JSON array string",
+        json_schema_extra={
+            "oneOf": [
+                {"type": "string"},
+                {"type": "array", "items": {"type": "string"}}
+            ]
+        }
+    )]] = None,
     ai_extraction: Optional[bool] = None,
     persistent_session: Optional[bool] = None,
     timeout_seconds: Optional[float] = None

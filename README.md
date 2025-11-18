@@ -13,6 +13,8 @@ A production-ready [Model Context Protocol](https://modelcontextprotocol.io/intr
 - [Quick Start](#quick-start)
 - [Available Tools](#available-tools)
 - [Setup Instructions](#setup-instructions)
+- [Local Usage](#local-usage)
+- [Google ADK Integration](#google-adk-integration)
 - [Example Use Cases](#example-use-cases)
 - [Error Handling](#error-handling)
 - [Common Issues](#common-issues)
@@ -211,6 +213,247 @@ The configuration file is located at:
 Add the ScrapeGraphAI MCP server on the settings:
 
 ![Cursor MCP Integration](assets/cursor_mcp.png)
+
+## Local Usage
+
+To run the MCP server locally for development or testing, follow these steps:
+
+### Prerequisites
+
+- Python 3.10 or higher
+- pip or uv package manager
+- ScrapeGraph API key
+
+### Installation
+
+1. **Clone the repository** (if you haven't already):
+
+```bash
+git clone https://github.com/ScrapeGraphAI/scrapegraph-mcp
+cd scrapegraph-mcp
+```
+
+2. **Install the package**:
+
+```bash
+# Using pip
+pip install -e .
+
+# Or using uv (faster)
+uv pip install -e .
+```
+
+3. **Set your API key**:
+
+```bash
+# macOS/Linux
+export SGAI_API_KEY=your-api-key-here
+
+# Windows (PowerShell)
+$env:SGAI_API_KEY="your-api-key-here"
+
+# Windows (CMD)
+set SGAI_API_KEY=your-api-key-here
+```
+
+### Running the Server Locally
+
+You can run the server directly:
+
+```bash
+# Using the installed command
+scrapegraph-mcp
+
+# Or using Python module
+python -m scrapegraph_mcp.server
+```
+
+The server will start and communicate via stdio (standard input/output), which is the standard MCP transport method.
+
+### Testing with MCP Inspector
+
+Test your local server using the MCP Inspector tool:
+
+```bash
+npx @modelcontextprotocol/inspector python -m scrapegraph_mcp.server
+```
+
+This provides a web interface to test all available tools interactively.
+
+### Configuring Claude Desktop for Local Server
+
+To use your locally running server with Claude Desktop, update your configuration file:
+
+**macOS/Linux** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
+```json
+{
+    "mcpServers": {
+        "scrapegraph-mcp-local": {
+            "command": "python",
+            "args": [
+                "-m",
+                "scrapegraph_mcp.server"
+            ],
+            "env": {
+                "SGAI_API_KEY": "your-api-key-here"
+            }
+        }
+    }
+}
+```
+
+**Windows** (`%APPDATA%\Claude\claude_desktop_config.json`):
+
+```json
+{
+    "mcpServers": {
+        "scrapegraph-mcp-local": {
+            "command": "python",
+            "args": [
+                "-m",
+                "scrapegraph_mcp.server"
+            ],
+            "env": {
+                "SGAI_API_KEY": "your-api-key-here"
+            }
+        }
+    }
+}
+```
+
+**Note**: Make sure Python is in your PATH. You can verify by running `python --version` in your terminal.
+
+### Configuring Cursor for Local Server
+
+In Cursor's MCP settings, add a new server with:
+
+- **Command**: `python`
+- **Args**: `["-m", "scrapegraph_mcp.server"]`
+- **Environment Variables**: `{"SGAI_API_KEY": "your-api-key-here"}`
+
+### Troubleshooting Local Setup
+
+**Server not starting:**
+- Verify Python is installed: `python --version`
+- Check that the package is installed: `pip list | grep scrapegraph-mcp`
+- Ensure API key is set: `echo $SGAI_API_KEY` (macOS/Linux) or `echo %SGAI_API_KEY%` (Windows)
+
+**Tools not appearing:**
+- Check Claude Desktop logs:
+  - macOS: `~/Library/Logs/Claude/`
+  - Windows: `%APPDATA%\Claude\Logs\`
+- Verify the server starts without errors when run directly
+- Check that the configuration JSON is valid
+
+**Import errors:**
+- Reinstall the package: `pip install -e . --force-reinstall`
+- Verify dependencies: `pip install -r requirements.txt` (if available)
+
+## Google ADK Integration
+
+The ScrapeGraph MCP server can be integrated with [Google ADK (Agent Development Kit)](https://github.com/google/adk) to create AI agents with web scraping capabilities.
+
+### Prerequisites
+
+- Python 3.10 or higher
+- Google ADK installed
+- ScrapeGraph API key
+
+### Installation
+
+1. **Install Google ADK** (if not already installed):
+
+```bash
+pip install google-adk
+```
+
+2. **Set your API key**:
+
+```bash
+export SGAI_API_KEY=your-api-key-here
+```
+
+### Basic Integration Example
+
+Create an agent file (e.g., `agent.py`) with the following configuration:
+
+```python
+import os
+from google.adk.agents import LlmAgent
+from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
+from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
+from mcp import StdioServerParameters
+
+# Path to the scrapegraph-mcp server directory
+SCRAPEGRAPH_MCP_PATH = "/path/to/scrapegraph-mcp"
+
+# Path to the server.py file
+SERVER_SCRIPT_PATH = os.path.join(
+    SCRAPEGRAPH_MCP_PATH, 
+    "src", 
+    "scrapegraph_mcp", 
+    "server.py"
+)
+
+root_agent = LlmAgent(
+    model='gemini-2.0-flash',
+    name='scrapegraph_assistant_agent',
+    instruction='Help the user with web scraping and data extraction using ScrapeGraph AI. '
+                'You can convert webpages to markdown, extract structured data using AI, '
+                'perform web searches, crawl multiple pages, and automate complex scraping workflows.',
+    tools=[
+        MCPToolset(
+            connection_params=StdioConnectionParams(
+                server_params=StdioServerParameters(
+                    command='python3',
+                    args=[
+                        SERVER_SCRIPT_PATH,
+                    ],
+                    env={
+                        'SGAI_API_KEY': os.getenv('SGAI_API_KEY'),
+                    },
+                ),
+                timeout=300.0,)
+            ),
+            # Optional: Filter which tools from the MCP server are exposed
+            # tool_filter=['markdownify', 'smartscraper', 'searchscraper']
+        )
+    ],
+)
+```
+
+### Configuration Options
+
+**Timeout Settings:**
+- Default timeout is 5 seconds, which may be too short for web scraping operations
+- Recommended: Set `timeout=300.0
+- Adjust based on your use case (crawling operations may need even longer timeouts)
+
+**Tool Filtering:**
+- By default, all 8 tools are exposed to the agent
+- Use `tool_filter` to limit which tools are available:
+  ```python
+  tool_filter=['markdownify', 'smartscraper', 'searchscraper']
+  ```
+
+**API Key Configuration:**
+- Set via environment variable: `export SGAI_API_KEY=your-key`
+- Or pass directly in `env` dict: `'SGAI_API_KEY': 'your-key-here'`
+- Environment variable approach is recommended for security
+
+### Usage Example
+
+Once configured, your agent can use natural language to interact with web scraping tools:
+
+```python
+# The agent can now handle queries like:
+# - "Convert https://example.com to markdown"
+# - "Extract all product prices from this e-commerce page"
+# - "Search for recent AI research papers and summarize them"
+# - "Crawl this documentation site and extract all API endpoints"
+```
+For more information about Google ADK, visit the [official documentation](https://github.com/google/adk).
 
 ## Example Use Cases
 
