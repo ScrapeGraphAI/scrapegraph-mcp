@@ -1,6 +1,6 @@
 [project]
 name = "scrapegraph-mcp"
-version = "1.0.0"
+version = "1.0.1"
 description = "MCP server for ScapeGraph API integration"
 license = {text = "MIT"}
 readme = "README.md"
