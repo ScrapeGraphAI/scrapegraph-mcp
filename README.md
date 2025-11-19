@@ -1,5 +1,7 @@
+```markdown
 # ScrapeGraph MCP Server
 
+[![smithery badge](https://smithery.ai/badge/@ScrapeGraphAI/scrapegraph-mcp-test)](https://smithery.ai/server/@ScrapeGraphAI/scrapegraph-mcp-test)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![smithery badge](https://smithery.ai/badge/@ScrapeGraphAI/scrapegraph-mcp)](https://smithery.ai/server/@ScrapeGraphAI/scrapegraph-mcp)
@@ -739,3 +741,4 @@ Special thanks to [tomekkorbak](https://github.com/tomekkorbak) for his implemen
 ---
 
 Made with ❤️ by [ScrapeGraphAI](https://scrapegraphai.com) Team
+```
