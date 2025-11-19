@@ -1,12 +1,55 @@
 #!/usr/bin/env python3
 """
 MCP server for ScapeGraph API integration.
+
 This server exposes methods to use ScapeGraph's AI-powered web scraping services:
 - markdownify: Convert any webpage into clean, formatted markdown
 - smartscraper: Extract structured data from any webpage using AI
 - searchscraper: Perform AI-powered web searches with structured results
 - smartcrawler_initiate: Initiate intelligent multi-page web crawling with AI extraction or markdown conversion
 - smartcrawler_fetch_results: Retrieve results from asynchronous crawling operations
+- scrape: Fetch raw page content with optional JavaScript rendering
+- sitemap: Extract and discover complete website structure
+- agentic_scrapper: Execute complex multi-step web scraping workflows
+
+## Parameter Validation and Error Handling
+
+All tools include comprehensive parameter validation with detailed error messages:
+
+### Common Validation Rules:
+- URLs must include protocol (http:// or https://)
+- Numeric parameters must be within specified ranges
+- Mutually exclusive parameters cannot be used together
+- Required parameters must be provided
+- JSON schemas must be valid JSON format
+
+### Error Response Format:
+All tools return errors in a consistent format:
+```json
+{
+  "error": "Detailed error message explaining the issue",
+  "error_type": "ValidationError|HTTPError|TimeoutError|etc.",
+  "parameter": "parameter_name_if_applicable",
+  "valid_range": "acceptable_values_if_applicable"
+}
+```
+
+### Example Validation Errors:
+- Invalid URL: "website_url must include protocol (http:// or https://)"
+- Range violation: "number_of_scrolls must be between 0 and 50"
+- Mutual exclusion: "Cannot specify both website_url and website_html"
+- Missing required: "prompt is required when extraction_mode is 'ai'"
+- Invalid JSON: "output_schema must be valid JSON format"
+
+### Best Practices for Error Handling:
+1. Always check the 'error' field in responses
+2. Use parameter validation before making requests
+3. Implement retry logic for timeout errors
+4. Handle rate limiting gracefully
+5. Validate URLs before passing to tools
+
+For comprehensive parameter documentation, use the resource:
+`scrapegraph://parameters/reference`
 """
 
 import json
@@ -736,6 +779,440 @@ def common_use_cases() -> str:
 """
 
 
+@mcp.resource("scrapegraph://parameters/reference")
+def parameter_reference_guide() -> str:
+    """
+    Comprehensive parameter reference guide for all ScapeGraph MCP tools.
+    
+    Complete documentation of every parameter with examples, constraints, and best practices.
+    """
+    return """# ScapeGraph MCP Parameter Reference Guide
+
+## 📋 Complete Parameter Documentation
+
+This guide provides comprehensive documentation for every parameter across all ScapeGraph MCP tools. Use this as your definitive reference for understanding parameter behavior, constraints, and best practices.
+
+---
+
+## 🔧 Common Parameters
+
+### URL Parameters
+**Used in**: markdownify, smartscraper, searchscraper, smartcrawler_initiate, scrape, sitemap, agentic_scrapper
+
+#### `website_url` / `url`
+- **Type**: `str` (required)
+- **Format**: Must include protocol (http:// or https://)
+- **Examples**: 
+  - ✅ `https://example.com/page`
+  - ✅ `https://docs.python.org/3/tutorial/`
+  - ❌ `example.com` (missing protocol)
+  - ❌ `ftp://example.com` (unsupported protocol)
+- **Best Practices**:
+  - Always include the full URL with protocol
+  - Ensure the URL is publicly accessible
+  - Test URLs manually before automation
+
+---
+
+## 🤖 AI and Extraction Parameters
+
+### `user_prompt`
+**Used in**: smartscraper, searchscraper, agentic_scrapper
+
+- **Type**: `str` (required)
+- **Purpose**: Natural language instructions for AI extraction
+- **Examples**:
+  - `"Extract product name, price, description, and availability"`
+  - `"Find contact information: email, phone, address"`
+  - `"Get article title, author, publication date, summary"`
+- **Best Practices**:
+  - Be specific about desired fields
+  - Mention data types (numbers, dates, URLs)
+  - Include context about data location
+  - Use clear, descriptive language
+
+### `output_schema`
+**Used in**: smartscraper, agentic_scrapper
+
+- **Type**: `Optional[Union[str, Dict[str, Any]]]`
+- **Purpose**: Define expected output structure
+- **Formats**:
+  - Dictionary: `{'type': 'object', 'properties': {'title': {'type': 'string'}}}`
+  - JSON string: `'{"type": "object", "properties": {"name": {"type": "string"}}}'`
+- **Examples**:
+  ```json
+  {
+    "type": "object",
+    "properties": {
+      "products": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "price": {"type": "number"},
+            "available": {"type": "boolean"}
+          }
+        }
+      }
+    }
+  }
+  ```
+- **Best Practices**:
+  - Use for complex, structured extractions
+  - Define clear data types
+  - Consider nested structures for complex data
+
+---
+
+## 🌐 Content Source Parameters
+
+### `website_html`
+**Used in**: smartscraper
+
+- **Type**: `Optional[str]`
+- **Purpose**: Process local HTML content
+- **Constraints**: Maximum 2MB
+- **Use Cases**:
+  - Pre-fetched HTML content
+  - Generated HTML from other sources
+  - Offline HTML processing
+- **Mutually Exclusive**: Cannot use with `website_url` or `website_markdown`
+
+### `website_markdown`
+**Used in**: smartscraper
+
+- **Type**: `Optional[str]`
+- **Purpose**: Process local markdown content
+- **Constraints**: Maximum 2MB
+- **Use Cases**:
+  - Documentation processing
+  - README file analysis
+  - Converted web content
+- **Mutually Exclusive**: Cannot use with `website_url` or `website_html`
+
+---
+
+## 📄 Pagination and Scrolling Parameters
+
+### `number_of_scrolls`
+**Used in**: smartscraper, searchscraper
+
+- **Type**: `Optional[int]`
+- **Range**: 0-50 scrolls
+- **Default**: 0 (no scrolling)
+- **Purpose**: Handle dynamically loaded content
+- **Examples**:
+  - `0`: Static content, no scrolling needed
+  - `3`: Social media feeds, product listings
+  - `10`: Long articles, extensive catalogs
+- **Performance Impact**: +5-10 seconds per scroll
+- **Best Practices**:
+  - Start with 0 and increase if content seems incomplete
+  - Use sparingly to control processing time
+  - Consider site loading behavior
+
+### `total_pages`
+**Used in**: smartscraper
+
+- **Type**: `Optional[int]`
+- **Range**: 1-100 pages
+- **Default**: 1 (single page)
+- **Purpose**: Process paginated content
+- **Cost Impact**: 10 credits × pages
+- **Examples**:
+  - `1`: Single page extraction
+  - `5`: First 5 pages of results
+  - `20`: Comprehensive pagination
+- **Best Practices**:
+  - Set reasonable limits to control costs
+  - Consider total credit usage
+  - Test with small numbers first
+
+---
+
+## 🚀 Performance Parameters
+
+### `render_heavy_js`
+**Used in**: smartscraper, scrape
+
+- **Type**: `Optional[bool]`
+- **Default**: `false`
+- **Purpose**: Enable JavaScript rendering for SPAs
+- **When to Use `true`**:
+  - React/Angular/Vue applications
+  - Dynamic content loading
+  - AJAX-heavy interfaces
+  - Content appearing after page load
+- **When to Use `false`**:
+  - Static websites
+  - Server-side rendered content
+  - Traditional HTML pages
+  - When speed is priority
+- **Performance Impact**:
+  - `false`: 2-5 seconds
+  - `true`: 15-30 seconds
+- **Cost**: Same regardless of setting
+
+### `stealth`
+**Used in**: smartscraper
+
+- **Type**: `Optional[bool]`
+- **Default**: `false`
+- **Purpose**: Bypass basic bot detection
+- **When to Use**:
+  - Sites with anti-scraping measures
+  - E-commerce sites with protection
+  - Sites requiring "human-like" behavior
+- **Limitations**:
+  - Not 100% guaranteed
+  - May increase processing time
+  - Some advanced detection may still work
+
+---
+
+## 🔄 Crawling Parameters
+
+### `prompt`
+**Used in**: smartcrawler_initiate
+
+- **Type**: `Optional[str]`
+- **Required**: When `extraction_mode="ai"`
+- **Purpose**: AI extraction instructions for all crawled pages
+- **Examples**:
+  - `"Extract API endpoint name, method, parameters"`
+  - `"Get article title, author, publication date"`
+- **Best Practices**:
+  - Use general terms that apply across page types
+  - Consider varying page structures
+  - Be specific about desired fields
+
+### `extraction_mode`
+**Used in**: smartcrawler_initiate
+
+- **Type**: `str`
+- **Default**: `"ai"`
+- **Options**:
+  - `"ai"`: AI-powered extraction (10 credits/page)
+  - `"markdown"`: Markdown conversion (2 credits/page)
+- **Cost Comparison**:
+  - AI mode: 50 pages = 500 credits
+  - Markdown mode: 50 pages = 100 credits
+- **Use Cases**:
+  - AI: Data collection, research, analysis
+  - Markdown: Content archival, documentation backup
+
+### `depth`
+**Used in**: smartcrawler_initiate
+
+- **Type**: `Optional[int]`
+- **Default**: Unlimited
+- **Purpose**: Control link traversal depth
+- **Levels**:
+  - `0`: Only starting URL
+  - `1`: Starting URL + direct links
+  - `2`: Two levels of link following
+  - `3+`: Deeper traversal
+- **Considerations**:
+  - Higher depth = exponential growth
+  - Use with `max_pages` for control
+  - Consider site structure
+
+### `max_pages`
+**Used in**: smartcrawler_initiate
+
+- **Type**: `Optional[int]`
+- **Default**: Unlimited
+- **Purpose**: Limit total pages crawled
+- **Recommended Ranges**:
+  - `10-20`: Testing, small sites
+  - `50-100`: Medium sites
+  - `200-500`: Large sites
+  - `1000+`: Enterprise crawling
+- **Cost Calculation**:
+  - AI mode: `max_pages × 10` credits
+  - Markdown mode: `max_pages × 2` credits
+
+### `same_domain_only`
+**Used in**: smartcrawler_initiate
+
+- **Type**: `Optional[bool]`
+- **Default**: `true`
+- **Purpose**: Control cross-domain crawling
+- **Options**:
+  - `true`: Stay within same domain (recommended)
+  - `false`: Allow external domains (use with caution)
+- **Best Practices**:
+  - Use `true` for focused crawling
+  - Set `max_pages` when using `false`
+  - Consider crawling scope carefully
+
+---
+
+## 🔄 Search Parameters
+
+### `num_results`
+**Used in**: searchscraper
+
+- **Type**: `Optional[int]`
+- **Default**: 3 websites
+- **Range**: 1-20 (recommended ≤10)
+- **Cost**: `num_results × 10` credits
+- **Examples**:
+  - `1`: Quick lookup (10 credits)
+  - `3`: Standard research (30 credits)
+  - `5`: Comprehensive (50 credits)
+  - `10`: Extensive analysis (100 credits)
+
+---
+
+## 🤖 Agentic Automation Parameters
+
+### `steps`
+**Used in**: agentic_scrapper
+
+- **Type**: `Optional[Union[str, List[str]]]`
+- **Purpose**: Sequential workflow instructions
+- **Formats**:
+  - List: `['Click search', 'Enter term', 'Extract results']`
+  - JSON string: `'["Step 1", "Step 2", "Step 3"]'`
+- **Best Practices**:
+  - Break complex actions into simple steps
+  - Be specific about UI elements
+  - Include wait/loading steps
+  - Order logically
+
+### `ai_extraction`
+**Used in**: agentic_scrapper
+
+- **Type**: `Optional[bool]`
+- **Default**: `true`
+- **Purpose**: Control extraction intelligence
+- **Options**:
+  - `true`: Advanced AI extraction (recommended)
+  - `false`: Simpler, faster extraction
+- **Trade-offs**:
+  - `true`: Better accuracy, slower processing
+  - `false`: Faster execution, less accurate
+
+### `persistent_session`
+**Used in**: agentic_scrapper
+
+- **Type**: `Optional[bool]`
+- **Default**: `false`
+- **Purpose**: Maintain session state between steps
+- **When to Use `true`**:
+  - Login flows
+  - Shopping cart processes
+  - Form wizards with dependencies
+- **When to Use `false`**:
+  - Simple data extraction
+  - Independent actions
+  - Public content scraping
+
+### `timeout_seconds`
+**Used in**: agentic_scrapper
+
+- **Type**: `Optional[float]`
+- **Default**: 120.0 (2 minutes)
+- **Recommended Ranges**:
+  - `60-120`: Simple workflows (2-5 steps)
+  - `180-300`: Medium complexity (5-10 steps)
+  - `300-600`: Complex workflows (10+ steps)
+  - `600+`: Very complex workflows
+- **Considerations**:
+  - Include page load times
+  - Factor in network latency
+  - Allow for AI processing time
+
+---
+
+## 💰 Credit Cost Summary
+
+| Tool | Base Cost | Additional Costs |
+|------|-----------|------------------|
+| `markdownify` | 2 credits | None |
+| `smartscraper` | 10 credits | +10 per additional page |
+| `searchscraper` | 30 credits (3 sites) | +10 per additional site |
+| `smartcrawler` | 2-10 credits/page | Depends on extraction mode |
+| `scrape` | 1 credit | None |
+| `sitemap` | 1 credit | None |
+| `agentic_scrapper` | Variable | Based on complexity |
+
+---
+
+## ⚠️ Common Parameter Mistakes
+
+### URL Formatting
+- ❌ `example.com` → ✅ `https://example.com`
+- ❌ `ftp://site.com` → ✅ `https://site.com`
+
+### Mutually Exclusive Parameters
+- ❌ Setting both `website_url` and `website_html`
+- ✅ Choose one input source only
+
+### Range Violations
+- ❌ `number_of_scrolls: 100` → ✅ `number_of_scrolls: 10`
+- ❌ `total_pages: 1000` → ✅ `total_pages: 100`
+
+### JSON Schema Errors
+- ❌ Invalid JSON string format
+- ✅ Valid JSON or dictionary format
+
+### Timeout Issues
+- ❌ `timeout_seconds: 30` for complex workflows
+- ✅ `timeout_seconds: 300` for complex workflows
+
+---
+
+## 🎯 Parameter Selection Guide
+
+### For Simple Content Extraction
+```
+Tool: markdownify or smartscraper
+Parameters: website_url, user_prompt (if smartscraper)
+```
+
+### For Dynamic Content
+```
+Tool: smartscraper or scrape
+Parameters: render_heavy_js=true, stealth=true (if needed)
+```
+
+### For Multi-Page Content
+```
+Tool: smartcrawler_initiate
+Parameters: max_pages, depth, extraction_mode
+```
+
+### For Research Tasks
+```
+Tool: searchscraper
+Parameters: num_results, user_prompt
+```
+
+### For Complex Automation
+```
+Tool: agentic_scrapper
+Parameters: steps, persistent_session, timeout_seconds
+```
+
+---
+
+## 📚 Additional Resources
+
+- **Tool Comparison**: Use `scrapegraph://tools/comparison` resource
+- **Use Cases**: Check `scrapegraph://examples/use-cases` resource
+- **API Status**: Monitor `scrapegraph://api/status` resource
+- **Quick Examples**: See prompt `quick_start_examples`
+
+---
+
+*Last Updated: November 2024*
+*For the most current parameter information, refer to individual tool documentation.*
+"""
+
+
 @mcp.resource("scrapegraph://tools/comparison")
 def tool_comparison_guide() -> str:
     """
@@ -895,10 +1372,30 @@ def markdownify(website_url: str, ctx: Context) -> Dict[str, Any]:
     Costs 2 credits per page. Read-only operation with no side effects.
 
     Args:
-        website_url: The complete URL of the webpage to convert to markdown format. Must include protocol (http:// or https://). Example: https://example.com/page
+        website_url (str): The complete URL of the webpage to convert to markdown format.
+            - Must include protocol (http:// or https://)
+            - Supports most web content types (HTML, articles, documentation)
+            - Works with both static and dynamic content
+            - Examples:
+              * https://example.com/page
+              * https://docs.python.org/3/tutorial/
+              * https://github.com/user/repo/README.md
+            - Invalid examples:
+              * example.com (missing protocol)
+              * ftp://example.com (unsupported protocol)
+              * localhost:3000 (missing protocol)
 
     Returns:
-        Dictionary containing the markdown result with the page content in markdown format
+        Dictionary containing:
+        - markdown: The converted markdown content as a string
+        - metadata: Additional information about the conversion (title, description, etc.)
+        - status: Success/error status of the operation
+        - credits_used: Number of credits consumed (always 2 for this operation)
+
+    Raises:
+        ValueError: If website_url is malformed or missing protocol
+        HTTPError: If the webpage cannot be accessed or returns an error
+        TimeoutError: If the webpage takes too long to load (>120 seconds)
     """
     try:
         api_key = get_api_key(ctx)
@@ -940,19 +1437,114 @@ def smartscraper(
     article metadata, or any structured content. Costs 10 credits per page. Read-only operation.
 
     Args:
-        user_prompt: Natural language instructions describing what data to extract. Be specific about the fields you want. Example: 'Extract product name, price, description, and availability status'
-        website_url: The complete URL of the webpage to scrape (mutually exclusive with website_html and website_markdown). Must include protocol. Example: https://example.com/products/item
-        website_html: Raw HTML content to process locally (mutually exclusive with website_url and website_markdown, max 2MB). Useful for processing pre-fetched or generated HTML
-        website_markdown: Markdown content to process locally (mutually exclusive with website_url and website_html, max 2MB). Useful for extracting from markdown documents
-        output_schema: JSON schema dict or JSON string defining the expected output structure. Example: {'type': 'object', 'properties': {'title': {'type': 'string'}, 'price': {'type': 'number'}}}
-        number_of_scrolls: Number of infinite scrolls to perform before scraping (0-50, default 0). Useful for dynamically loaded content. Example: 3 for pages with lazy-loading
-        total_pages: Number of pages to process for pagination (1-100, default 1). Useful for multi-page content
-        render_heavy_js: Enable heavy JavaScript rendering for Single Page Applications and dynamic sites (default false). Increases processing time but captures client-side rendered content
-        stealth: Enable stealth mode to avoid bot detection (default false). Useful for sites with anti-scraping measures
+        user_prompt (str): Natural language instructions describing what data to extract.
+            - Be specific about the fields you want for better results
+            - Use clear, descriptive language about the target data
+            - Examples:
+              * "Extract product name, price, description, and availability status"
+              * "Find all contact methods: email addresses, phone numbers, and social media links"
+              * "Get article title, author, publication date, and summary"
+              * "Extract all job listings with title, company, location, and salary"
+            - Tips for better results:
+              * Specify exact field names you want
+              * Mention data types (numbers, dates, URLs, etc.)
+              * Include context about where data might be located
+
+        website_url (Optional[str]): The complete URL of the webpage to scrape.
+            - Mutually exclusive with website_html and website_markdown
+            - Must include protocol (http:// or https://)
+            - Supports dynamic and static content
+            - Examples:
+              * https://example.com/products/item
+              * https://news.site.com/article/123
+              * https://company.com/contact
+            - Default: None (must provide one of the three input sources)
+
+        website_html (Optional[str]): Raw HTML content to process locally.
+            - Mutually exclusive with website_url and website_markdown
+            - Maximum size: 2MB
+            - Useful for processing pre-fetched or generated HTML
+            - Use when you already have HTML content from another source
+            - Example: "<html><body><h1>Title</h1><p>Content</p></body></html>"
+            - Default: None
+
+        website_markdown (Optional[str]): Markdown content to process locally.
+            - Mutually exclusive with website_url and website_html
+            - Maximum size: 2MB
+            - Useful for extracting from markdown documents or converted content
+            - Works well with documentation, README files, or converted web content
+            - Example: "# Title\n\n## Section\n\nContent here..."
+            - Default: None
+
+        output_schema (Optional[Union[str, Dict]]): JSON schema defining expected output structure.
+            - Can be provided as a dictionary or JSON string
+            - Helps ensure consistent, structured output format
+            - Optional but recommended for complex extractions
+            - Examples:
+              * As dict: {'type': 'object', 'properties': {'title': {'type': 'string'}, 'price': {'type': 'number'}}}
+              * As JSON string: '{"type": "object", "properties": {"name": {"type": "string"}}}'
+              * For arrays: {'type': 'array', 'items': {'type': 'object', 'properties': {...}}}
+            - Default: None (AI will infer structure from prompt)
+
+        number_of_scrolls (Optional[int]): Number of infinite scrolls to perform before scraping.
+            - Range: 0-50 scrolls
+            - Default: 0 (no scrolling)
+            - Useful for dynamically loaded content (lazy loading, infinite scroll)
+            - Each scroll waits for content to load before continuing
+            - Examples:
+              * 0: Static content, no scrolling needed
+              * 3: Social media feeds, product listings
+              * 10: Long articles, extensive product catalogs
+            - Note: Increases processing time proportionally
+
+        total_pages (Optional[int]): Number of pages to process for pagination.
+            - Range: 1-100 pages
+            - Default: 1 (single page only)
+            - Automatically follows pagination links when available
+            - Useful for multi-page listings, search results, catalogs
+            - Examples:
+              * 1: Single page extraction
+              * 5: First 5 pages of search results
+              * 20: Comprehensive catalog scraping
+            - Note: Each page counts toward credit usage (10 credits × pages)
+
+        render_heavy_js (Optional[bool]): Enable heavy JavaScript rendering for dynamic sites.
+            - Default: false
+            - Set to true for Single Page Applications (SPAs), React apps, Vue.js sites
+            - Increases processing time but captures client-side rendered content
+            - Use when content is loaded dynamically via JavaScript
+            - Examples of when to use:
+              * React/Angular/Vue applications
+              * Sites with dynamic content loading
+              * AJAX-heavy interfaces
+              * Content that appears after page load
+            - Note: Significantly increases processing time (30-60 seconds vs 5-15 seconds)
+
+        stealth (Optional[bool]): Enable stealth mode to avoid bot detection.
+            - Default: false
+            - Helps bypass basic anti-scraping measures
+            - Uses techniques to appear more like a human browser
+            - Useful for sites with bot detection systems
+            - Examples of when to use:
+              * Sites that block automated requests
+              * E-commerce sites with protection
+              * Sites that require "human-like" behavior
+            - Note: May increase processing time and is not 100% guaranteed
 
     Returns:
-        Dictionary containing the extracted data in structured format matching your prompt requirements
-        and optional output_schema
+        Dictionary containing:
+        - extracted_data: The structured data matching your prompt and optional schema
+        - metadata: Information about the extraction process
+        - credits_used: Number of credits consumed (10 per page processed)
+        - processing_time: Time taken for the extraction
+        - pages_processed: Number of pages that were analyzed
+        - status: Success/error status of the operation
+
+    Raises:
+        ValueError: If no input source provided or multiple sources provided
+        HTTPError: If website_url cannot be accessed
+        TimeoutError: If processing exceeds timeout limits
+        ValidationError: If output_schema is malformed JSON
     """
     try:
         api_key = get_api_key(ctx)
@@ -1004,13 +1596,65 @@ def searchscraper(
     Read-only operation but results may vary over time (non-idempotent).
 
     Args:
-        user_prompt: Search query or natural language instructions for what information to find across the web. Example: 'Find latest AI research papers published in 2024 with author names and abstracts'
-        num_results: Number of websites to search and extract data from. Default is 3 websites. Note: Each website costs 10 credits, so 3 websites = 30 credits
-        number_of_scrolls: Number of infinite scrolls to perform on each searched webpage before extraction. Default is 0. Useful for pages with dynamically loaded content
+        user_prompt (str): Search query or natural language instructions for information to find.
+            - Can be a simple search query or detailed extraction instructions
+            - The AI will search the web and extract relevant data from found pages
+            - Be specific about what information you want extracted
+            - Examples:
+              * "Find latest AI research papers published in 2024 with author names and abstracts"
+              * "Search for Python web scraping tutorials with ratings and difficulty levels"
+              * "Get current cryptocurrency prices and market caps for top 10 coins"
+              * "Find contact information for tech startups in San Francisco"
+              * "Search for job openings for data scientists with salary information"
+            - Tips for better results:
+              * Include specific fields you want extracted
+              * Mention timeframes or filters (e.g., "latest", "2024", "top 10")
+              * Specify data types needed (prices, dates, ratings, etc.)
+
+        num_results (Optional[int]): Number of websites to search and extract data from.
+            - Default: 3 websites (costs 30 credits total)
+            - Range: 1-20 websites (recommended to stay under 10 for cost efficiency)
+            - Each website costs 10 credits, so total cost = num_results × 10
+            - Examples:
+              * 1: Quick single-source lookup (10 credits)
+              * 3: Standard research (30 credits) - good balance of coverage and cost
+              * 5: Comprehensive research (50 credits)
+              * 10: Extensive analysis (100 credits)
+            - Note: More results provide broader coverage but increase costs and processing time
+
+        number_of_scrolls (Optional[int]): Number of infinite scrolls per searched webpage.
+            - Default: 0 (no scrolling on search result pages)
+            - Range: 0-10 scrolls per page
+            - Useful when search results point to pages with dynamic content loading
+            - Each scroll waits for content to load before continuing
+            - Examples:
+              * 0: Static content pages, news articles, documentation
+              * 2: Social media pages, product listings with lazy loading
+              * 5: Extensive feeds, long-form content with infinite scroll
+            - Note: Increases processing time significantly (adds 5-10 seconds per scroll per page)
 
     Returns:
-        Dictionary containing structured search results with extracted data from multiple websites,
-        including reference URLs for each source
+        Dictionary containing:
+        - search_results: Array of extracted data from each website found
+        - sources: List of URLs that were searched and processed
+        - total_websites_processed: Number of websites successfully analyzed
+        - credits_used: Total credits consumed (num_results × 10)
+        - processing_time: Total time taken for search and extraction
+        - search_query_used: The actual search query sent to search engines
+        - metadata: Additional information about the search process
+
+    Raises:
+        ValueError: If user_prompt is empty or num_results is out of range
+        HTTPError: If search engines are unavailable or return errors
+        TimeoutError: If search or extraction process exceeds timeout limits
+        RateLimitError: If too many requests are made in a short time period
+
+    Note:
+        - Results may vary between calls due to changing web content (non-idempotent)
+        - Search engines may return different results over time
+        - Some websites may be inaccessible or block automated access
+        - Processing time increases with num_results and number_of_scrolls
+        - Consider using smartscraper on specific URLs if you know the target sites
     """
     try:
         api_key = get_api_key(ctx)
@@ -1044,16 +1688,122 @@ def smartcrawler_initiate(
     - Markdown Conversion Mode: Converts each page to clean markdown format
 
     Args:
-        url: The starting URL to begin crawling from. The crawler will discover and process linked pages from this starting point. Must include protocol. Example: https://docs.example.com
-        prompt: AI prompt for data extraction (REQUIRED when extraction_mode is 'ai', ignored for 'markdown' mode). Describe what data to extract from each page. Example: 'Extract API endpoint name, method, parameters, and description'
-        extraction_mode: Extraction mode: 'ai' for AI-powered structured data extraction (10 credits/page) or 'markdown' for simple markdown conversion (2 credits/page). Default is 'ai'
-        depth: Maximum depth of link traversal from the starting URL. Depth 1 means only pages linked from the start URL. Default is unlimited depth. Example: 2
-        max_pages: Maximum number of pages to crawl in total. Use this to control costs and scope. Default is unlimited. Recommended: Start with 10-20 for testing. Example: 50
-        same_domain_only: If true, only crawls pages within the same domain as the starting URL. Prevents following external links. Default is true. Set false to crawl external links
+        url (str): The starting URL to begin crawling from.
+            - Must include protocol (http:// or https://)
+            - The crawler will discover and process linked pages from this starting point
+            - Should be a page with links to other pages you want to crawl
+            - Examples:
+              * https://docs.example.com (documentation site root)
+              * https://blog.company.com (blog homepage)
+              * https://example.com/products (product category page)
+              * https://news.site.com/category/tech (news section)
+            - Best practices:
+              * Use homepage or main category pages as starting points
+              * Ensure the starting page has links to content you want to crawl
+              * Consider site structure when choosing the starting URL
+
+        prompt (Optional[str]): AI prompt for data extraction.
+            - REQUIRED when extraction_mode is 'ai'
+            - Ignored when extraction_mode is 'markdown'
+            - Describes what data to extract from each crawled page
+            - Applied consistently across all discovered pages
+            - Examples:
+              * "Extract API endpoint name, method, parameters, and description"
+              * "Get article title, author, publication date, and summary"
+              * "Find product name, price, description, and availability"
+              * "Extract job title, company, location, salary, and requirements"
+            - Tips for better results:
+              * Be specific about fields you want from each page
+              * Consider that different pages may have different content structures
+              * Use general terms that apply across multiple page types
+
+        extraction_mode (str): Extraction mode for processing crawled pages.
+            - Default: "ai"
+            - Options:
+              * "ai": AI-powered structured data extraction (10 credits per page)
+                - Uses the prompt to extract specific data from each page
+                - Returns structured JSON data
+                - More expensive but provides targeted information
+                - Best for: Data collection, research, structured analysis
+              * "markdown": Simple markdown conversion (2 credits per page)
+                - Converts each page to clean markdown format
+                - No AI processing, just content conversion
+                - More cost-effective for content archival
+                - Best for: Documentation backup, content migration, reading
+            - Cost comparison:
+              * AI mode: 50 pages = 500 credits
+              * Markdown mode: 50 pages = 100 credits
+
+        depth (Optional[int]): Maximum depth of link traversal from the starting URL.
+            - Default: unlimited (will follow links until max_pages or no more links)
+            - Depth levels:
+              * 0: Only the starting URL (no link following)
+              * 1: Starting URL + pages directly linked from it
+              * 2: Starting URL + direct links + links from those pages
+              * 3+: Continues following links to specified depth
+            - Examples:
+              * 1: Crawl blog homepage + all blog posts
+              * 2: Crawl docs homepage + category pages + individual doc pages
+              * 3: Deep crawling for comprehensive site coverage
+            - Considerations:
+              * Higher depth can lead to exponential page growth
+              * Use with max_pages to control scope and cost
+              * Consider site structure when setting depth
+
+        max_pages (Optional[int]): Maximum number of pages to crawl in total.
+            - Default: unlimited (will crawl until no more links or depth limit)
+            - Recommended ranges:
+              * 10-20: Testing and small sites
+              * 50-100: Medium sites and focused crawling
+              * 200-500: Large sites and comprehensive analysis
+              * 1000+: Enterprise-level crawling (high cost)
+            - Cost implications:
+              * AI mode: max_pages × 10 credits
+              * Markdown mode: max_pages × 2 credits
+            - Examples:
+              * 10: Quick site sampling (20-100 credits)
+              * 50: Standard documentation crawl (100-500 credits)
+              * 200: Comprehensive site analysis (400-2000 credits)
+            - Note: Crawler stops when this limit is reached, regardless of remaining links
+
+        same_domain_only (Optional[bool]): Whether to crawl only within the same domain.
+            - Default: true (recommended for most use cases)
+            - Options:
+              * true: Only crawl pages within the same domain as starting URL
+                - Prevents following external links
+                - Keeps crawling focused on the target site
+                - Reduces risk of crawling unrelated content
+                - Example: Starting at docs.example.com only crawls docs.example.com pages
+              * false: Allow crawling external domains
+                - Follows links to other domains
+                - Can lead to very broad crawling scope
+                - May crawl unrelated or unwanted content
+                - Use with caution and appropriate max_pages limit
+            - Recommendations:
+              * Use true for focused site crawling
+              * Use false only when you specifically need cross-domain data
+              * Always set max_pages when using false to prevent runaway crawling
 
     Returns:
-        Dictionary containing the unique request_id for polling results with smartcrawler_fetch_results.
-        Keep polling until status is 'completed'
+        Dictionary containing:
+        - request_id: Unique identifier for this crawl operation (use with smartcrawler_fetch_results)
+        - status: Initial status of the crawl request ("initiated" or "processing")
+        - estimated_cost: Estimated credit cost based on parameters (actual cost may vary)
+        - crawl_parameters: Summary of the crawling configuration
+        - estimated_time: Rough estimate of processing time
+        - next_steps: Instructions for retrieving results
+
+    Raises:
+        ValueError: If URL is malformed, prompt is missing for AI mode, or parameters are invalid
+        HTTPError: If the starting URL cannot be accessed
+        RateLimitError: If too many crawl requests are initiated too quickly
+
+    Note:
+        - This operation is asynchronous and may take several minutes to complete
+        - Use smartcrawler_fetch_results with the returned request_id to get results
+        - Keep polling smartcrawler_fetch_results until status is "completed"
+        - Actual pages crawled may be less than max_pages if fewer links are found
+        - Processing time increases with max_pages, depth, and extraction_mode complexity
     """
     try:
         api_key = get_api_key(ctx)
@@ -1115,12 +1865,69 @@ def scrape(
     Read-only operation with no side effects.
 
     Args:
-        website_url: The complete URL of the webpage to scrape. Must include protocol (http:// or https://). Returns raw page content. Example: https://example.com/page
-        render_heavy_js: If true, enables full JavaScript rendering for pages with heavy client-side rendering (SPAs, React apps, etc.). Increases processing time but captures dynamic content. Default is false
+        website_url (str): The complete URL of the webpage to scrape.
+            - Must include protocol (http:// or https://)
+            - Returns raw HTML content of the page
+            - Works with both static and dynamic websites
+            - Examples:
+              * https://example.com/page
+              * https://api.example.com/docs
+              * https://news.site.com/article/123
+              * https://app.example.com/dashboard (may need render_heavy_js=true)
+            - Supported protocols: HTTP, HTTPS
+            - Invalid examples:
+              * example.com (missing protocol)
+              * ftp://example.com (unsupported protocol)
+
+        render_heavy_js (Optional[bool]): Enable full JavaScript rendering for dynamic content.
+            - Default: false (faster, lower cost, works for most static sites)
+            - Set to true for sites that require JavaScript execution to display content
+            - When to use true:
+              * Single Page Applications (React, Angular, Vue.js)
+              * Sites with dynamic content loading via AJAX
+              * Content that appears only after JavaScript execution
+              * Interactive web applications
+              * Sites where initial HTML is mostly empty
+            - When to use false (default):
+              * Static websites and blogs
+              * Server-side rendered content
+              * Traditional HTML pages
+              * News articles and documentation
+              * When you need faster processing
+            - Performance impact:
+              * false: 2-5 seconds processing time
+              * true: 15-30 seconds processing time (waits for JS execution)
+            - Cost: Same (1 credit) regardless of render_heavy_js setting
 
     Returns:
-        Dictionary containing the raw HTML content of the page. Enable render_heavy_js for
-        dynamic content that requires JavaScript execution
+        Dictionary containing:
+        - html_content: The raw HTML content of the page as a string
+        - page_title: Extracted page title if available
+        - status_code: HTTP response status code (200 for success)
+        - final_url: Final URL after any redirects
+        - content_length: Size of the HTML content in bytes
+        - processing_time: Time taken to fetch and process the page
+        - javascript_rendered: Whether JavaScript rendering was used
+        - credits_used: Number of credits consumed (always 1)
+
+    Raises:
+        ValueError: If website_url is malformed or missing protocol
+        HTTPError: If the webpage returns an error status (404, 500, etc.)
+        TimeoutError: If the page takes too long to load
+        ConnectionError: If the website cannot be reached
+
+    Use Cases:
+        - Getting raw HTML for custom parsing
+        - Checking page structure before using other tools
+        - Fetching content for offline processing
+        - Debugging website content issues
+        - Pre-processing before AI extraction
+
+    Note:
+        - This tool returns raw HTML without any AI processing
+        - Use smartscraper for structured data extraction
+        - Use markdownify for clean, readable content
+        - Consider render_heavy_js=true if initial results seem incomplete
     """
     try:
         api_key = get_api_key(ctx)
@@ -1144,11 +1951,66 @@ def sitemap(website_url: str, ctx: Context) -> Dict[str, Any]:
     Read-only operation with no side effects.
 
     Args:
-        website_url: The base URL of the website to extract sitemap from. Returns discovered URLs and site structure. Must include protocol. Example: https://example.com
+        website_url (str): The base URL of the website to extract sitemap from.
+            - Must include protocol (http:// or https://)
+            - Should be the root domain or main section you want to map
+            - The tool will discover all accessible pages from this starting point
+            - Examples:
+              * https://example.com (discover entire website structure)
+              * https://docs.example.com (map documentation site)
+              * https://blog.company.com (discover all blog pages)
+              * https://shop.example.com (map e-commerce structure)
+            - Best practices:
+              * Use root domain (https://example.com) for complete site mapping
+              * Use subdomain (https://docs.example.com) for focused mapping
+              * Ensure the URL is accessible and doesn't require authentication
+            - Discovery methods:
+              * Checks for robots.txt and sitemap.xml files
+              * Crawls navigation links and menus
+              * Discovers pages through internal link analysis
+              * Identifies common URL patterns and structures
 
     Returns:
-        Dictionary containing the discovered URLs, site structure, and hierarchy. Includes all
-        accessible pages, subdomains, and resource paths found on the website
+        Dictionary containing:
+        - discovered_urls: List of all URLs found on the website
+        - site_structure: Hierarchical organization of pages and sections
+        - url_categories: URLs grouped by type (pages, images, documents, etc.)
+        - total_pages: Total number of pages discovered
+        - subdomains: List of subdomains found (if any)
+        - sitemap_sources: Sources used for discovery (sitemap.xml, robots.txt, crawling)
+        - page_types: Breakdown of different content types found
+        - depth_analysis: URL organization by depth from root
+        - external_links: Links pointing to external domains (if found)
+        - processing_time: Time taken to complete the discovery
+        - credits_used: Number of credits consumed (always 1)
+
+    Raises:
+        ValueError: If website_url is malformed or missing protocol
+        HTTPError: If the website cannot be accessed or returns errors
+        TimeoutError: If the discovery process takes too long
+        ConnectionError: If the website cannot be reached
+
+    Use Cases:
+        - Planning comprehensive crawling operations
+        - Understanding website architecture and organization
+        - Discovering all available content before targeted scraping
+        - SEO analysis and site structure optimization
+        - Content inventory and audit preparation
+        - Identifying pages for bulk processing operations
+
+    Best Practices:
+        - Run sitemap before using smartcrawler_initiate for better planning
+        - Use results to set appropriate max_pages and depth parameters
+        - Check discovered URLs to understand site organization
+        - Identify high-value pages for targeted extraction
+        - Use for cost estimation before large crawling operations
+
+    Note:
+        - Very cost-effective at only 1 credit per request
+        - Results may vary based on site structure and accessibility
+        - Some pages may require authentication and won't be discovered
+        - Large sites may have thousands of URLs - consider filtering results
+        - Use discovered URLs as input for other scraping tools
     """
     try:
         api_key = get_api_key(ctx)
@@ -1203,17 +2065,157 @@ def agentic_scrapper(
     (dict or JSON string) to accommodate different client implementations.
 
     Args:
-        url: The target website URL where the agentic scraping workflow should start. Must include protocol. Example: https://example.com/search
-        user_prompt: High-level instructions for what the agent should accomplish on the website. Example: 'Navigate to the search page, search for laptops, and extract the top 5 results with prices'
-        output_schema: Desired output structure as a JSON schema dict or JSON string. Defines the format of extracted data. Example: {'type': 'object', 'properties': {'title': {'type': 'string'}, 'price': {'type': 'number'}}}
-        steps: Step-by-step instructions for the agent as a list of strings or JSON array string. Example: ['Click search button', 'Enter search term', 'Wait for results', 'Extract data']
-        ai_extraction: Whether to enable AI-powered extraction mode for intelligent data parsing. Default is true. Set false for simpler extraction
-        persistent_session: Whether to maintain session state between steps (keeps cookies, login state, etc.). Useful for authenticated workflows. Default is false
-        timeout_seconds: Maximum time in seconds to wait for the entire workflow to complete. Default is 120 seconds. Increase for complex workflows. Example: 300.0
+        url (str): The target website URL where the agentic scraping workflow should start.
+            - Must include protocol (http:// or https://)
+            - Should be the starting page for your automation workflow
+            - The agent will begin its actions from this URL
+            - Examples:
+              * https://example.com/search (start at search page)
+              * https://shop.example.com/login (begin with login flow)
+              * https://app.example.com/dashboard (start at main interface)
+              * https://forms.example.com/contact (begin at form page)
+            - Considerations:
+              * Choose a starting point that makes sense for your workflow
+              * Ensure the page is publicly accessible or handle authentication
+              * Consider the logical flow of actions from this starting point
+
+        user_prompt (Optional[str]): High-level instructions for what the agent should accomplish.
+            - Describes the overall goal and desired outcome of the automation
+            - Should be clear and specific about what you want to achieve
+            - Works in conjunction with the steps parameter for detailed guidance
+            - Examples:
+              * "Navigate to the search page, search for laptops, and extract the top 5 results with prices"
+              * "Fill out the contact form with sample data and submit it"
+              * "Login to the dashboard and extract all recent notifications"
+              * "Browse the product catalog and collect information about all items"
+              * "Navigate through the multi-step checkout process and capture each step"
+            - Tips for better results:
+              * Be specific about the end goal
+              * Mention what data you want extracted
+              * Include context about the expected workflow
+              * Specify any particular elements or sections to focus on
+
+        output_schema (Optional[Union[str, Dict]]): Desired output structure for extracted data.
+            - Can be provided as a dictionary or JSON string
+            - Defines the format and structure of the final extracted data
+            - Helps ensure consistent, predictable output format
+            - Examples:
+              * Simple object: {'type': 'object', 'properties': {'title': {'type': 'string'}, 'price': {'type': 'number'}}}
+              * Array of objects: {'type': 'array', 'items': {'type': 'object', 'properties': {'name': {'type': 'string'}, 'value': {'type': 'string'}}}}
+              * Complex nested: {'type': 'object', 'properties': {'products': {'type': 'array', 'items': {...}}, 'total_count': {'type': 'number'}}}
+              * As JSON string: '{"type": "object", "properties": {"results": {"type": "array"}}}'
+            - Default: None (agent will infer structure from prompt and steps)
+
+        steps (Optional[Union[str, List[str]]]): Step-by-step instructions for the agent.
+            - Can be provided as a list of strings or JSON array string
+            - Provides detailed, sequential instructions for the automation workflow
+            - Each step should be a clear, actionable instruction
+            - Examples as list:
+              * ['Click the search button', 'Enter "laptops" in the search box', 'Press Enter', 'Wait for results to load', 'Extract product information']
+              * ['Fill in email field with test@example.com', 'Fill in password field', 'Click login button', 'Navigate to profile page']
+            - Examples as JSON string:
+              * '["Open navigation menu", "Click on Products", "Select category filters", "Extract all product data"]'
+            - Best practices:
+              * Break complex actions into simple steps
+              * Be specific about UI elements (button text, field names, etc.)
+              * Include waiting/loading steps when necessary
+              * Specify extraction points clearly
+              * Order steps logically for the workflow
+
+        ai_extraction (Optional[bool]): Enable AI-powered extraction mode for intelligent data parsing.
+            - Default: true (recommended for most use cases)
+            - Options:
+              * true: Uses advanced AI to intelligently extract and structure data
+                - Better at handling complex page layouts
+                - Can adapt to different content structures
+                - Provides more accurate data extraction
+                - Recommended for most scenarios
+              * false: Uses simpler extraction methods
+                - Faster processing but less intelligent
+                - May miss complex or nested data
+                - Use when speed is more important than accuracy
+            - Performance impact:
+              * true: Higher processing time but better results
+              * false: Faster execution but potentially less accurate extraction
+
+        persistent_session (Optional[bool]): Maintain session state between steps.
+            - Default: false (each step starts fresh)
+            - Options:
+              * true: Keeps cookies, login state, and session data between steps
+                - Essential for authenticated workflows
+                - Maintains shopping cart contents, user preferences, etc.
+                - Required for multi-step processes that depend on previous actions
+                - Use for: Login flows, shopping processes, form wizards
+              * false: Each step starts with a clean session
+                - Faster and simpler for independent actions
+                - No state carried between steps
+                - Use for: Simple data extraction, public content scraping
+            - Examples when to use true:
+              * Login → Navigate to protected area → Extract data
+              * Add items to cart → Proceed to checkout → Extract order details
+              * Multi-step form completion with session dependencies
+
+        timeout_seconds (Optional[float]): Maximum time to wait for the entire workflow.
+            - Default: 120 seconds (2 minutes)
+            - Recommended ranges:
+              * 60-120: Simple workflows (2-5 steps)
+              * 180-300: Medium complexity (5-10 steps)
+              * 300-600: Complex workflows (10+ steps or slow sites)
+              * 600+: Very complex or slow-loading workflows
+            - Considerations:
+              * Include time for page loads, form submissions, and processing
+              * Factor in network latency and site response times
+              * Allow extra time for AI processing and extraction
+              * Balance between thoroughness and efficiency
+            - Examples:
+              * 60.0: Quick single-page data extraction
+              * 180.0: Multi-step form filling and submission
+              * 300.0: Complex navigation and comprehensive data extraction
+              * 600.0: Extensive workflows with multiple page interactions
 
     Returns:
-        Dictionary containing the extracted data matching the specified output_schema, along with
-        execution metadata, visited URLs, and action logs from the automated workflow
+        Dictionary containing:
+        - extracted_data: The structured data matching your prompt and optional schema
+        - workflow_log: Detailed log of all actions performed by the agent
+        - pages_visited: List of URLs visited during the workflow
+        - actions_performed: Summary of interactions (clicks, form fills, navigations)
+        - execution_time: Total time taken for the workflow
+        - steps_completed: Number of steps successfully executed
+        - final_page_url: The URL where the workflow ended
+        - session_data: Session information if persistent_session was enabled
+        - credits_used: Number of credits consumed (varies by complexity)
+        - status: Success/failure status with any error details
+
+    Raises:
+        ValueError: If URL is malformed or required parameters are missing
+        TimeoutError: If the workflow exceeds the specified timeout
+        NavigationError: If the agent cannot navigate to required pages
+        InteractionError: If the agent cannot interact with specified elements
+        ExtractionError: If data extraction fails or returns invalid results
+
+    Use Cases:
+        - Automated form filling and submission
+        - Multi-step checkout processes
+        - Login-protected content extraction
+        - Interactive search and filtering workflows
+        - Complex navigation scenarios requiring user simulation
+        - Data collection from dynamic, JavaScript-heavy applications
+
+    Best Practices:
+        - Start with simple workflows and gradually increase complexity
+        - Use specific element identifiers in steps (button text, field labels)
+        - Include appropriate wait times for page loads and dynamic content
+        - Test with persistent_session=true for authentication-dependent workflows
+        - Set realistic timeouts based on workflow complexity
+        - Provide clear, sequential steps that build on each other
+        - Use output_schema to ensure consistent data structure
+
+    Note:
+        - This tool can perform actions on websites (non-read-only)
+        - Results may vary between runs due to dynamic content (non-idempotent)
+        - Credit cost varies based on workflow complexity and execution time
+        - Some websites may have anti-automation measures that could affect success
+        - Consider using simpler tools (smartscraper, markdownify) for basic extraction needs
     """
     # Normalize inputs to handle flexible formats from different MCP clients
     normalized_steps: Optional[List[str]] = None
