@@ -1,5 +1,6 @@
 # ScrapeGraph MCP Server
 
+[![smithery badge](https://smithery.ai/badge/@ScrapeGraphAI/scrapegraph-mcp-test)](https://smithery.ai/server/@ScrapeGraphAI/scrapegraph-mcp-test)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![smithery badge](https://smithery.ai/badge/@ScrapeGraphAI/scrapegraph-mcp)](https://smithery.ai/server/@ScrapeGraphAI/scrapegraph-mcp)
