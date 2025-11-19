@@ -1,7 +1,7 @@
 # ScrapeGraph MCP Server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![smithery badge](https://smithery.ai/badge/@ScrapeGraphAI/scrapegraph-mcp)](https://smithery.ai/server/@ScrapeGraphAI/scrapegraph-mcp)
 
 
@@ -220,7 +220,7 @@ To run the MCP server locally for development or testing, follow these steps:
 
 ### Prerequisites
 
-- Python 3.10 or higher
+- Python 3.13 or higher
 - pip or uv package manager
 - ScrapeGraph API key
 
@@ -356,7 +356,7 @@ The ScrapeGraph MCP server can be integrated with [Google ADK (Agent Development
 
 ### Prerequisites
 
-- Python 3.10 or higher
+- Python 3.13 or higher
 - Google ADK installed
 - ScrapeGraph API key
 
@@ -533,7 +533,7 @@ For detailed troubleshooting, see the [.agent documentation](.agent/README.md).
 
 ### Prerequisites
 
-- Python 3.10 or higher
+- Python 3.13 or higher
 - pip or uv package manager
 - ScrapeGraph API key
 
@@ -671,7 +671,7 @@ npx @modelcontextprotocol/inspector scrapegraph-mcp
 - **Type hints**: Required for all functions
 - **Docstrings**: Google-style docstrings
 - **Error handling**: Return error dicts, don't raise exceptions in tools
-- **Python version**: Target 3.10+
+- **Python version**: Target 3.13+
 
 For detailed development guidelines, see the [.agent documentation](.agent/README.md).
 
@@ -686,7 +686,7 @@ For comprehensive developer documentation, see:
 ## Technology Stack
 
 ### Core Framework
-- **Python 3.10+** - Modern Python with type hints
+- **Python 3.13+** - Modern Python with type hints
 - **FastMCP** - Lightweight MCP server framework
 - **httpx 0.24.0+** - Modern async HTTP client
 
