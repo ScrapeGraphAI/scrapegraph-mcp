@@ -837,8 +837,9 @@ This guide provides comprehensive documentation for every parameter across all S
 - **Type**: `Optional[Union[str, Dict[str, Any]]]`
 - **Purpose**: Define expected output structure
 - **Formats**:
-  - Dictionary: `{'type': 'object', 'properties': {'title': {'type': 'string'}}}`
-  - JSON string: `'{"type": "object", "properties": {"name": {"type": "string"}}}'`
+  - Dictionary: `{'type': 'object', 'properties': {'title': {'type': 'string'}}, 'required': []}`
+  - JSON string: `'{"type": "object", "properties": {"name": {"type": "string"}}, "required": []}'`
+- **IMPORTANT**: Must include a `"required"` field (can be empty array `[]` if no fields are required)
 - **Examples**:
   ```json
   {
@@ -852,16 +853,20 @@ This guide provides comprehensive documentation for every parameter across all S
             "name": {"type": "string"},
             "price": {"type": "number"},
             "available": {"type": "boolean"}
-          }
+          },
+          "required": []
         }
       }
-    }
+    },
+    "required": []
   }
   ```
 - **Best Practices**:
+  - Always include the `"required"` field (use `[]` if no fields are required)
   - Use for complex, structured extractions
   - Define clear data types
   - Consider nested structures for complex data
+  - Note: If `"required"` field is missing, it will be automatically added as `[]`
 
 ---
 
@@ -1432,8 +1437,7 @@ def smartscraper(
     Extract structured data from a webpage, HTML, or markdown using AI-powered extraction.
 
     This tool uses advanced AI to understand your natural language prompt and extract specific
-    structured data from web content. Supports three input modes: URL scraping, local HTML processing,
-    or local markdown processing. Ideal for extracting product information, contact details,
+    structured data from web content. Supports three input modes: URL scraping. Ideal for extracting product information, contact details,
     article metadata, or any structured content. Costs 10 credits per page. Read-only operation.
 
     Args:
@@ -1480,10 +1484,13 @@ def smartscraper(
             - Can be provided as a dictionary or JSON string
             - Helps ensure consistent, structured output format
             - Optional but recommended for complex extractions
+            - IMPORTANT: Must include a "required" field (can be empty array [] if no fields are required)
             - Examples:
-              * As dict: {'type': 'object', 'properties': {'title': {'type': 'string'}, 'price': {'type': 'number'}}}
-              * As JSON string: '{"type": "object", "properties": {"name": {"type": "string"}}}'
-              * For arrays: {'type': 'array', 'items': {'type': 'object', 'properties': {...}}}
+              * As dict: {'type': 'object', 'properties': {'title': {'type': 'string'}, 'price': {'type': 'number'}}, 'required': []}
+              * As JSON string: '{"type": "object", "properties": {"name": {"type": "string"}}, "required": []}'
+              * For arrays: {'type': 'array', 'items': {'type': 'object', 'properties': {...}, 'required': []}, 'required': []}
+              * With required fields: {'type': 'object', 'properties': {'name': {'type': 'string'}, 'email': {'type': 'string'}}, 'required': ['name', 'email']}
+            - Note: If "required" field is missing, it will be automatically added as an empty array []
             - Default: None (AI will infer structure from prompt)
 
         number_of_scrolls (Optional[int]): Number of infinite scrolls to perform before scraping.
@@ -1563,6 +1570,11 @@ def smartscraper(
                     return {"error": "output_schema must be a JSON object"}
             except json.JSONDecodeError as e:
                 return {"error": f"Invalid JSON for output_schema: {str(e)}"}
+
+        # Ensure output_schema has a 'required' field if it exists
+        if normalized_schema is not None:
+            if "required" not in normalized_schema:
+                normalized_schema["required"] = []
 
         return client.smartscraper(
             user_prompt=user_prompt,
@@ -2099,11 +2111,14 @@ def agentic_scrapper(
             - Can be provided as a dictionary or JSON string
             - Defines the format and structure of the final extracted data
             - Helps ensure consistent, predictable output format
+            - IMPORTANT: Must include a "required" field (can be empty array [] if no fields are required)
             - Examples:
-              * Simple object: {'type': 'object', 'properties': {'title': {'type': 'string'}, 'price': {'type': 'number'}}}
-              * Array of objects: {'type': 'array', 'items': {'type': 'object', 'properties': {'name': {'type': 'string'}, 'value': {'type': 'string'}}}}
-              * Complex nested: {'type': 'object', 'properties': {'products': {'type': 'array', 'items': {...}}, 'total_count': {'type': 'number'}}}
-              * As JSON string: '{"type": "object", "properties": {"results": {"type": "array"}}}'
+              * Simple object: {'type': 'object', 'properties': {'title': {'type': 'string'}, 'price': {'type': 'number'}}, 'required': []}
+              * Array of objects: {'type': 'array', 'items': {'type': 'object', 'properties': {'name': {'type': 'string'}, 'value': {'type': 'string'}}, 'required': []}, 'required': []}
+              * Complex nested: {'type': 'object', 'properties': {'products': {'type': 'array', 'items': {...}}, 'total_count': {'type': 'number'}}, 'required': []}
+              * As JSON string: '{"type": "object", "properties": {"results": {"type": "array"}}, "required": []}'
+              * With required fields: {'type': 'object', 'properties': {'id': {'type': 'string'}, 'name': {'type': 'string'}}, 'required': ['id']}
+            - Note: If "required" field is missing, it will be automatically added as an empty array []
             - Default: None (agent will infer structure from prompt and steps)
 
         steps (Optional[Union[str, List[str]]]): Step-by-step instructions for the agent.
@@ -2245,6 +2260,11 @@ def agentic_scrapper(
         except json.JSONDecodeError as e:
             return {"error": f"Invalid JSON for output_schema: {str(e)}"}
 
+    # Ensure output_schema has a 'required' field if it exists
+    if normalized_schema is not None:
+        if "required" not in normalized_schema:
+            normalized_schema["required"] = []
+
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
@@ -2280,8 +2300,10 @@ def create_server() -> FastMCP:
 def main() -> None:
     """Run the ScapeGraph MCP server."""
     try:
-        logger.info("Starting ScapeGraph MCP server!")
-        print("Starting ScapeGraph MCP server!")
+        # Verify we're running from local codebase
+        server_path = os.path.abspath(__file__)
+        logger.info(f"Starting ScapeGraph MCP server from local codebase: {server_path}")
+        print(f"Starting ScapeGraph MCP server (local codebase)")
         mcp.run(transport="stdio")
     except Exception as e:
         logger.error(f"Failed to start MCP server: {e}")
