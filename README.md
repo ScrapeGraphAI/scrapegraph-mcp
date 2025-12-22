@@ -13,6 +13,7 @@ A production-ready [Model Context Protocol](https://modelcontextprotocol.io/intr
 - [Quick Start](#quick-start)
 - [Available Tools](#available-tools)
 - [Setup Instructions](#setup-instructions)
+- [Remote Server Usage](#remote-server-usage)
 - [Local Usage](#local-usage)
 - [Google ADK Integration](#google-adk-integration)
 - [Example Use Cases](#example-use-cases)
@@ -213,6 +214,53 @@ The configuration file is located at:
 Add the ScrapeGraphAI MCP server on the settings:
 
 ![Cursor MCP Integration](assets/cursor_mcp.png)
+
+## Remote Server Usage
+
+Connect to our hosted MCP server - no local installation required!
+
+### Claude Desktop Configuration (Remote)
+
+Add this to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "scrapegraph-mcp": {
+      "command": "npx",
+      "args": [
+        "mcp-remote@0.1.25",
+        "https://scrapegraph-mcp.onrender.com/mcp",
+        "--header",
+        "X-API-Key:YOUR_API_KEY"
+      ]
+    }
+  }
+}
+```
+
+### Cursor Configuration (Remote)
+
+Cursor supports native HTTP MCP connections. Add to your Cursor MCP settings (`~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "scrapegraph-mcp": {
+      "url": "https://scrapegraph-mcp.onrender.com/mcp",
+      "headers": {
+        "X-API-Key": "YOUR_API_KEY"
+      }
+    }
+  }
+}
+```
+
+### Benefits of Remote Server
+
+- **No local setup** - Just configure and start using
+- **Always up-to-date** - Automatically receives latest updates
+- **Cross-platform** - Works on any OS with Node.js
 
 ## Local Usage
 
