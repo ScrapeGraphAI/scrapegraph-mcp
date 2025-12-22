@@ -395,74 +395,59 @@ class ConfigSchema(BaseModel):
 
 def get_api_key(ctx: Context) -> str:
     """
-    Get the API key from config or environment variable.
-    
+    Get the API key from HTTP header or MCP session config.
+
+    Supports two modes:
+    - HTTP mode (Render): API key from 'X-API-Key' header via mcp-remote
+    - Stdio mode (Smithery): API key from session_config.scrapegraph_api_key
+
     Args:
         ctx: FastMCP context
-        
+
     Returns:
         API key string
-        
+
     Raises:
         ValueError: If no API key is found
     """
-    try:
-        logger.info(f"Getting API key. Context type: {type(ctx)}")
-        logger.info(f"Context has session_config: {hasattr(ctx, 'session_config')}")
-        
-        # Try to get from config first, but handle cases where session_config might be None
-        api_key = None
-        if hasattr(ctx, 'session_config') and ctx.session_config is not None:
-            logger.info(f"Session config type: {type(ctx.session_config)}")
-            api_key = getattr(ctx.session_config, 'scrapegraph_api_key', None)
-            logger.info(f"API key from config: {'***' if api_key else 'None'}")
-        else:
-            logger.info("No session_config available or session_config is None")
-        
-        # If not in config, try environment variable
-        if not api_key:
-            api_key = os.getenv('SGAI_API_KEY')
-            logger.info(f"API key from env: {'***' if api_key else 'None'}")
+    from fastmcp.server.dependencies import get_http_headers
 
-        # If still no API key found, raise error
-        if not api_key:
-            logger.error("No API key found in config or environment")
-            raise ValueError(
-                "ScapeGraph API key is required. Please provide it either:\n"
-                "1. In the MCP server configuration as 'scrapegraph_api_key'\n"
-                "2. As an environment variable 'SGAI_API_KEY'"
-            )
-        
-        logger.info("API key successfully retrieved")
-        return api_key
-    
-    except Exception as e:
-        logger.warning(f"Error getting API key from context: {e}. Falling back to cached method.")
-        # Fallback to cached method if context handling fails
-        return get_cached_api_key()
+    # Try HTTP header first (for remote/Render deployments)
+    try:
+        headers = get_http_headers()
+        api_key = headers.get('x-api-key')
+        if api_key:
+            logger.info("API key retrieved from X-API-Key header")
+            return api_key
+    except LookupError:
+        # Not in HTTP context, try session config (Smithery/stdio mode)
+        pass
+
+    # Try session config (for Smithery/stdio deployments)
+    if hasattr(ctx, 'session_config') and ctx.session_config is not None:
+        api_key = getattr(ctx.session_config, 'scrapegraph_api_key', None)
+        if api_key:
+            logger.info("API key retrieved from session config")
+            return api_key
+
+    logger.error("No API key found in header or session config")
+    raise ValueError(
+        "ScapeGraph API key is required. Please provide it via:\n"
+        "- HTTP header 'X-API-Key' (for remote server via mcp-remote)\n"
+        "- MCP config 'scrapegraphApiKey' (for Smithery/local stdio)"
+    )
 
 
 # Create MCP server instance
 mcp = FastMCP("ScapeGraph API MCP Server")
 
-# Global API key cache to handle session issues
-_api_key_cache: Optional[str] = None
 
-def get_cached_api_key() -> str:
-    """Get API key from cache or environment, bypassing session config issues."""
-    global _api_key_cache
-    
-    if _api_key_cache is None:
-        _api_key_cache = os.getenv('SGAI_API_KEY')
-        if _api_key_cache:
-            logger.info("API key loaded from environment variable")
-        else:
-            logger.error("No API key found in environment variable SGAI_API_KEY")
-            raise ValueError(
-                "ScapeGraph API key is required. Please set the SGAI_API_KEY environment variable."
-            )
-    
-    return _api_key_cache
+# Health check endpoint for remote deployments (Render, etc.)
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request):
+    """Health check endpoint for container orchestration and load balancers."""
+    from starlette.responses import JSONResponse
+    return JSONResponse({"status": "healthy", "service": "scrapegraph-mcp"})
 
 
 # Add prompts to help users interact with the server
@@ -2298,13 +2283,30 @@ def create_server() -> FastMCP:
 
 
 def main() -> None:
-    """Run the ScapeGraph MCP server."""
+    """Run the ScapeGraph MCP server.
+
+    Supports two transport modes:
+    - stdio (default): For local use with Claude Desktop, Cursor, etc.
+    - http: For remote deployment on Render, Koyeb, etc.
+
+    Set MCP_TRANSPORT=http environment variable for remote deployment.
+    """
+    transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
+
     try:
-        # Verify we're running from local codebase
-        server_path = os.path.abspath(__file__)
-        logger.info(f"Starting ScapeGraph MCP server from local codebase: {server_path}")
-        print(f"Starting ScapeGraph MCP server (local codebase)")
-        mcp.run(transport="stdio")
+        if transport == "http":
+            # Remote deployment mode (Render, Koyeb, etc.)
+            host = os.getenv("HOST", "0.0.0.0")
+            port = int(os.getenv("PORT", "8000"))
+            logger.info(f"Starting ScapeGraph MCP server in HTTP mode on {host}:{port}")
+            print(f"Starting ScapeGraph MCP server in HTTP mode on {host}:{port}")
+            mcp.run(transport="http", host=host, port=port)
+        else:
+            # Local stdio mode (Claude Desktop, Cursor, etc.)
+            server_path = os.path.abspath(__file__)
+            logger.info(f"Starting ScapeGraph MCP server from local codebase: {server_path}")
+            print("Starting ScapeGraph MCP server (local codebase)")
+            mcp.run(transport="stdio")
     except Exception as e:
         logger.error(f"Failed to start MCP server: {e}")
         print(f"Error starting server: {e}")

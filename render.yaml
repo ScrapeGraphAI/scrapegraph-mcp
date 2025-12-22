@@ -1,0 +1,27 @@
+# Render Blueprint for ScrapeGraph MCP Server
+# Deploy with: https://render.com/deploy
+# Or connect your GitHub repo to Render and it will auto-detect this file
+
+services:
+  - type: web
+    name: scrapegraph-mcp
+    runtime: docker
+    plan: starter  # Change to 'free' for testing, 'starter' or higher for production
+
+    # Docker configuration
+    dockerfilePath: ./Dockerfile
+
+    # Health check endpoint
+    healthCheckPath: /health
+
+    # Auto-deploy on push to main branch
+    autoDeploy: true
+
+    # Environment variables
+    envVars:
+      # Transport mode (http for remote deployment)
+      - key: MCP_TRANSPORT
+        value: http
+
+      # Note: SGAI_API_KEY is NOT set here.
+      # Each user passes their own API key via mcp-remote from their local environment.
