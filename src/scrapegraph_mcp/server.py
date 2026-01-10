@@ -90,22 +90,63 @@ class ScapeGraphClient:
         self.client = httpx.Client(timeout=httpx.Timeout(120.0))
 
 
-    def markdownify(self, website_url: str) -> Dict[str, Any]:
+    def markdownify(
+        self,
+        website_url: str,
+        headers: Optional[Dict[str, str]] = None,
+        steps: Optional[List[str]] = None,
+        stealth: Optional[bool] = None,
+        stream: Optional[bool] = None,
+        mock: Optional[bool] = None
+    ) -> Dict[str, Any]:
         """
         Convert a webpage into clean, formatted markdown.
 
         Args:
             website_url: URL of the webpage to convert
+            headers: HTTP headers to include in the request (optional)
+            steps: Interaction steps before conversion (optional)
+            stealth: Enable stealth mode to avoid bot detection (optional)
+            stream: Enable streaming response for real-time updates (optional)
+            mock: Return mock data for testing purposes (optional)
 
         Returns:
             Dictionary containing the markdown result
         """
         url = f"{self.BASE_URL}/markdownify"
-        data = {
-            "website_url": website_url
-        }
+        data = {"website_url": website_url}
+
+        if headers is not None:
+            data["headers"] = headers
+        if steps is not None:
+            data["steps"] = steps
+        if stealth is not None:
+            data["stealth"] = stealth
+        if stream is not None:
+            data["stream"] = stream
+        if mock is not None:
+            data["mock"] = mock
 
         response = self.client.post(url, headers=self.headers, json=data)
+
+        if response.status_code != 200:
+            error_msg = f"Error {response.status_code}: {response.text}"
+            raise Exception(error_msg)
+
+        return response.json()
+
+    def markdownify_status(self, request_id: str) -> Dict[str, Any]:
+        """
+        Get the status of a markdownify request.
+
+        Args:
+            request_id: The request ID to check status for
+
+        Returns:
+            Dictionary containing the request status and results
+        """
+        url = f"{self.BASE_URL}/markdownify/{request_id}"
+        response = self.client.get(url, headers=self.headers)
 
         if response.status_code != 200:
             error_msg = f"Error {response.status_code}: {response.text}"
@@ -175,6 +216,25 @@ class ScapeGraphClient:
 
         return response.json()
 
+    def smartscraper_status(self, request_id: str) -> Dict[str, Any]:
+        """
+        Get the status of a smartscraper request.
+
+        Args:
+            request_id: The request ID to check status for
+
+        Returns:
+            Dictionary containing the request status and results
+        """
+        url = f"{self.BASE_URL}/smartscraper/{request_id}"
+        response = self.client.get(url, headers=self.headers)
+
+        if response.status_code != 200:
+            error_msg = f"Error {response.status_code}: {response.text}"
+            raise Exception(error_msg)
+
+        return response.json()
+
     def searchscraper(self, user_prompt: str, num_results: int = None, number_of_scrolls: int = None) -> Dict[str, Any]:
         """
         Perform AI-powered web searches with structured results.
@@ -208,13 +268,23 @@ class ScapeGraphClient:
 
         return response.json()
 
-    def scrape(self, website_url: str, render_heavy_js: Optional[bool] = None) -> Dict[str, Any]:
+    def scrape(
+        self,
+        website_url: str,
+        render_heavy_js: Optional[bool] = None,
+        mock: Optional[bool] = None,
+        stealth: Optional[bool] = None,
+        stream: Optional[bool] = None
+    ) -> Dict[str, Any]:
         """
         Basic scrape endpoint to fetch page content.
 
         Args:
             website_url: URL to scrape
             render_heavy_js: Whether to render heavy JS (optional)
+            mock: Return mock data for testing purposes (optional)
+            stealth: Enable stealth mode to avoid bot detection (optional)
+            stream: Enable streaming response for real-time updates (optional)
 
         Returns:
             Dictionary containing the scraped result
@@ -223,23 +293,32 @@ class ScapeGraphClient:
         payload: Dict[str, Any] = {"website_url": website_url}
         if render_heavy_js is not None:
             payload["render_heavy_js"] = render_heavy_js
+        if mock is not None:
+            payload["mock"] = mock
+        if stealth is not None:
+            payload["stealth"] = stealth
+        if stream is not None:
+            payload["stream"] = stream
 
         response = self.client.post(url, headers=self.headers, json=payload)
         response.raise_for_status()
         return response.json()
 
-    def sitemap(self, website_url: str) -> Dict[str, Any]:
+    def sitemap(self, website_url: str, stream: Optional[bool] = None) -> Dict[str, Any]:
         """
         Extract sitemap for a given website.
 
         Args:
             website_url: Base website URL
+            stream: Enable streaming response for real-time updates (optional)
 
         Returns:
             Dictionary containing sitemap URLs/structure
         """
         url = f"{self.BASE_URL}/sitemap"
         payload: Dict[str, Any] = {"website_url": website_url}
+        if stream is not None:
+            payload["stream"] = stream
 
         response = self.client.post(url, headers=self.headers, json=payload)
         response.raise_for_status()
@@ -1353,7 +1432,15 @@ URL → sitemap (map structure) → smartcrawler (batch process)
 
 # Add tool for markdownify
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
-def markdownify(website_url: str, ctx: Context) -> Dict[str, Any]:
+def markdownify(
+    website_url: str,
+    ctx: Context,
+    headers: Optional[Dict[str, str]] = None,
+    steps: Optional[List[str]] = None,
+    stealth: Optional[bool] = None,
+    stream: Optional[bool] = None,
+    mock: Optional[bool] = None
+) -> Dict[str, Any]:
     """
     Convert a webpage into clean, formatted markdown.
 
@@ -1375,6 +1462,49 @@ def markdownify(website_url: str, ctx: Context) -> Dict[str, Any]:
               * ftp://example.com (unsupported protocol)
               * localhost:3000 (missing protocol)
 
+        headers (Optional[Dict[str, str]]): HTTP headers to include in the request.
+            - Custom headers to send with the HTTP request
+            - Useful for authentication, custom user agents, or API requirements
+            - Examples:
+              * {"User-Agent": "Custom Browser"}
+              * {"Authorization": "Bearer token"}
+              * {"Accept-Language": "en-US"}
+            - Default: None (uses standard headers)
+
+        steps (Optional[List[str]]): Website interaction steps before conversion.
+            - List of actions to perform before extracting markdown content
+            - Useful for interacting with dynamic pages or navigating through content
+            - Examples:
+              * ["Click 'Show More' button", "Wait for content to load"]
+              * ["Navigate to About section", "Expand all details"]
+              * ["Accept cookies", "Close popup"]
+            - Default: None (no interaction steps)
+
+        stealth (Optional[bool]): Enable stealth mode to avoid bot detection.
+            - Default: false (standard request)
+            - Set to true to bypass basic anti-scraping measures
+            - Uses techniques to appear more like a human browser
+            - When to use true:
+              * Sites with bot detection systems
+              * Sites that block automated requests
+              * Protected content that requires human-like behavior
+            - Note: May increase processing time and is not 100% guaranteed
+
+        stream (Optional[bool]): Enable streaming response for real-time updates.
+            - Default: false (standard response)
+            - Set to true for streaming mode to receive data as it's being processed
+            - Useful for monitoring progress on large pages or slow conversions
+            - Provides real-time feedback during the markdown conversion
+
+        mock (Optional[bool]): Return mock data for testing purposes.
+            - Default: false (real conversion)
+            - Set to true to receive mock/sample markdown instead of actually converting the page
+            - Useful for testing and development without consuming credits
+            - When to use true:
+              * Testing your integration without making real requests
+              * Prototyping workflows before production use
+              * Development and debugging scenarios
+
     Returns:
         Dictionary containing:
         - markdown: The converted markdown content as a string
@@ -1390,7 +1520,67 @@ def markdownify(website_url: str, ctx: Context) -> Dict[str, Any]:
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.markdownify(website_url)
+        return client.markdownify(
+            website_url=website_url,
+            headers=headers,
+            steps=steps,
+            stealth=stealth,
+            stream=stream,
+            mock=mock
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# Add tool for markdownify status
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
+def markdownify_status(request_id: str, ctx: Context) -> Dict[str, Any]:
+    """
+    Get the status and results of a markdownify conversion request.
+
+    This tool retrieves the status of a previously initiated markdown conversion using the request_id.
+    Use this when you need to check the status or retrieve results of an asynchronous markdownify operation.
+    Read-only operation with no side effects.
+
+    Args:
+        request_id (str): The unique request identifier returned by a previous markdownify call.
+            - Format: UUID string (e.g., "123e4567-e89b-12d3-a456-426614174000")
+            - Used to track and retrieve specific conversion results
+            - Each markdownify operation may return a request_id for status checking
+            - Examples:
+              * "7f3d8a9c-1234-5678-9abc-def012345678"
+              * "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+    Returns:
+        Dictionary containing:
+        - request_id: The request identifier
+        - status: Current status of the conversion ("queued", "processing", "completed", "failed")
+        - result: The converted markdown content (when status is "completed")
+        - website_url: The URL that was converted
+        - error: Error message if status is "failed" (empty string otherwise)
+        - processing_time: Time taken for the conversion (when completed)
+        - credits_used: Number of credits consumed
+
+    Raises:
+        ValueError: If request_id is malformed or invalid
+        HTTPError: If the request cannot be found (404) or server error occurs
+
+    Use Cases:
+        - Checking the status of long-running markdown conversions
+        - Retrieving results from asynchronous markdownify operations
+        - Monitoring conversion progress for large or complex pages
+        - Verifying completion before proceeding with next steps
+
+    Note:
+        - Some markdownify operations may complete synchronously and not require status checks
+        - If status is "processing" or "queued", poll this endpoint again after a delay
+        - Once status is "completed", the result field will contain the markdown content
+        - Failed requests will have status "failed" and an error message in the error field
+    """
+    try:
+        api_key = get_api_key(ctx)
+        client = ScapeGraphClient(api_key)
+        return client.markdownify_status(request_id=request_id)
     except Exception as e:
         return {"error": str(e)}
 
@@ -1572,6 +1762,63 @@ def smartscraper(
             render_heavy_js=render_heavy_js,
             stealth=stealth
         )
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# Add tool for smartscraper status
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
+def smartscraper_status(request_id: str, ctx: Context) -> Dict[str, Any]:
+    """
+    Get the status and results of a smartscraper extraction request.
+
+    This tool retrieves the status of a previously initiated AI-powered data extraction using the request_id.
+    Use this when you need to check the status or retrieve results of an asynchronous smartscraper operation.
+    Read-only operation with no side effects.
+
+    Args:
+        request_id (str): The unique request identifier returned by a previous smartscraper call.
+            - Format: UUID string (e.g., "123e4567-e89b-12d3-a456-426614174000")
+            - Used to track and retrieve specific extraction results
+            - Each smartscraper operation may return a request_id for status checking
+            - Examples:
+              * "7f3d8a9c-1234-5678-9abc-def012345678"
+              * "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+    Returns:
+        Dictionary containing:
+        - request_id: The request identifier
+        - status: Current status of the extraction ("queued", "processing", "completed", "failed")
+        - result: The extracted structured data (when status is "completed")
+        - website_url: The URL that was scraped (if applicable)
+        - user_prompt: The original extraction prompt
+        - error: Error message if status is "failed" (empty string otherwise)
+        - processing_time: Time taken for the extraction (when completed)
+        - credits_used: Number of credits consumed
+        - pages_processed: Number of pages analyzed
+
+    Raises:
+        ValueError: If request_id is malformed or invalid
+        HTTPError: If the request cannot be found (404) or server error occurs
+
+    Use Cases:
+        - Checking the status of long-running data extractions
+        - Retrieving results from asynchronous smartscraper operations
+        - Monitoring extraction progress for complex or multi-page scraping
+        - Verifying completion before proceeding with next steps
+        - Handling extraction errors and retries
+
+    Note:
+        - Some smartscraper operations may complete synchronously and not require status checks
+        - If status is "processing" or "queued", poll this endpoint again after a delay
+        - Once status is "completed", the result field will contain the extracted structured data
+        - Failed requests will have status "failed" and an error message in the error field
+        - The extracted data format depends on the output_schema provided in the original request
+    """
+    try:
+        api_key = get_api_key(ctx)
+        client = ScapeGraphClient(api_key)
+        return client.smartscraper_status(request_id=request_id)
     except Exception as e:
         return {"error": str(e)}
 
@@ -1851,7 +2098,10 @@ def smartcrawler_fetch_results(request_id: str, ctx: Context) -> Dict[str, Any]:
 def scrape(
     website_url: str,
     ctx: Context,
-    render_heavy_js: Optional[bool] = None
+    render_heavy_js: Optional[bool] = None,
+    mock: Optional[bool] = None,
+    stealth: Optional[bool] = None,
+    stream: Optional[bool] = None
 ) -> Dict[str, Any]:
     """
     Fetch raw page content from any URL with optional JavaScript rendering.
@@ -1896,6 +2146,31 @@ def scrape(
               * true: 15-30 seconds processing time (waits for JS execution)
             - Cost: Same (1 credit) regardless of render_heavy_js setting
 
+        mock (Optional[bool]): Return mock data for testing purposes.
+            - Default: false (real scraping)
+            - Set to true to receive mock/sample data instead of actually scraping the website
+            - Useful for testing and development without consuming credits or hitting rate limits
+            - When to use true:
+              * Testing your integration without making real requests
+              * Prototyping workflows before production use
+              * Development and debugging scenarios
+
+        stealth (Optional[bool]): Enable stealth mode to avoid bot detection.
+            - Default: false (standard scraping)
+            - Set to true to bypass basic anti-scraping measures
+            - Uses techniques to appear more like a human browser
+            - When to use true:
+              * Sites with bot detection systems
+              * E-commerce sites with protection
+              * Sites that block automated requests
+            - Note: May increase processing time and is not 100% guaranteed
+
+        stream (Optional[bool]): Enable streaming response for real-time updates.
+            - Default: false (standard response)
+            - Set to true for streaming mode to receive data as it's being processed
+            - Useful for monitoring progress on large or slow-loading pages
+            - Provides real-time feedback during the scraping operation
+
     Returns:
         Dictionary containing:
         - html_content: The raw HTML content of the page as a string
@@ -1929,7 +2204,13 @@ def scrape(
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.scrape(website_url=website_url, render_heavy_js=render_heavy_js)
+        return client.scrape(
+            website_url=website_url,
+            render_heavy_js=render_heavy_js,
+            mock=mock,
+            stealth=stealth,
+            stream=stream
+        )
     except httpx.HTTPError as http_err:
         return {"error": str(http_err)}
     except ValueError as val_err:
@@ -1938,7 +2219,7 @@ def scrape(
 
 # Add tool for sitemap extraction
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
-def sitemap(website_url: str, ctx: Context) -> Dict[str, Any]:
+def sitemap(website_url: str, ctx: Context, stream: Optional[bool] = None) -> Dict[str, Any]:
     """
     Extract and discover the complete sitemap structure of any website.
 
@@ -1966,6 +2247,12 @@ def sitemap(website_url: str, ctx: Context) -> Dict[str, Any]:
               * Crawls navigation links and menus
               * Discovers pages through internal link analysis
               * Identifies common URL patterns and structures
+
+        stream (Optional[bool]): Enable streaming response for real-time updates.
+            - Default: false (standard response)
+            - Set to true for streaming mode to receive updates as they are discovered
+            - Useful for large sites where discovery may take significant time
+            - Provides progress updates during the sitemap extraction process
 
     Returns:
         Dictionary containing:
@@ -2012,7 +2299,7 @@ def sitemap(website_url: str, ctx: Context) -> Dict[str, Any]:
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.sitemap(website_url=website_url)
+        return client.sitemap(website_url=website_url, stream=stream)
     except httpx.HTTPError as http_err:
         return {"error": str(http_err)}
     except ValueError as val_err:
