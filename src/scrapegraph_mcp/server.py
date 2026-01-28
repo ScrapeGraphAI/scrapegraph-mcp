@@ -94,7 +94,6 @@ class ScapeGraphClient:
         self,
         website_url: str,
         headers: Optional[Dict[str, str]] = None,
-        steps: Optional[List[str]] = None,
         stealth: Optional[bool] = None,
         stream: Optional[bool] = None,
         mock: Optional[bool] = None
@@ -105,7 +104,6 @@ class ScapeGraphClient:
         Args:
             website_url: URL of the webpage to convert
             headers: HTTP headers to include in the request (optional)
-            steps: Interaction steps before conversion (optional)
             stealth: Enable stealth mode to avoid bot detection (optional)
             stream: Enable streaming response for real-time updates (optional)
             mock: Return mock data for testing purposes (optional)
@@ -118,8 +116,6 @@ class ScapeGraphClient:
 
         if headers is not None:
             data["headers"] = headers
-        if steps is not None:
-            data["steps"] = steps
         if stealth is not None:
             data["stealth"] = stealth
         if stream is not None:
@@ -1441,7 +1437,6 @@ def markdownify(
     website_url: str,
     ctx: Context,
     headers: Optional[Dict[str, str]] = None,
-    steps: Optional[List[str]] = None,
     stealth: Optional[bool] = None,
     stream: Optional[bool] = None,
     mock: Optional[bool] = None
@@ -1475,15 +1470,6 @@ def markdownify(
               * {"Authorization": "Bearer token"}
               * {"Accept-Language": "en-US"}
             - Default: None (uses standard headers)
-
-        steps (Optional[List[str]]): Website interaction steps before conversion.
-            - List of actions to perform before extracting markdown content
-            - Useful for interacting with dynamic pages or navigating through content
-            - Examples:
-              * ["Click 'Show More' button", "Wait for content to load"]
-              * ["Navigate to About section", "Expand all details"]
-              * ["Accept cookies", "Close popup"]
-            - Default: None (no interaction steps)
 
         stealth (Optional[bool]): Enable stealth mode to avoid bot detection.
             - Default: false (standard request)
@@ -1528,7 +1514,6 @@ def markdownify(
         return client.markdownify(
             website_url=website_url,
             headers=headers,
-            steps=steps,
             stealth=stealth,
             stream=stream,
             mock=mock
