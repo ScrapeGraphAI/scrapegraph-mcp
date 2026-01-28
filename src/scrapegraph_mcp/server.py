@@ -55,7 +55,7 @@ For comprehensive parameter documentation, use the resource:
 import json
 import logging
 import os
-from typing import Any, Dict, Optional, List, Union, Annotated
+from typing import Any, Dict, Optional, List, Union, Annotated, Literal
 
 import httpx
 from fastmcp import Context, FastMCP
@@ -235,7 +235,7 @@ class ScapeGraphClient:
 
         return response.json()
 
-    def searchscraper(self, user_prompt: str, num_results: int = None, number_of_scrolls: int = None) -> Dict[str, Any]:
+    def searchscraper(self, user_prompt: str, num_results: int = None, number_of_scrolls: int = None, time_range: str = None) -> Dict[str, Any]:
         """
         Perform AI-powered web searches with structured results.
 
@@ -243,6 +243,7 @@ class ScapeGraphClient:
             user_prompt: Search query or instructions
             num_results: Number of websites to search (optional, default: 3 websites = 30 credits)
             number_of_scrolls: Number of infinite scrolls to perform on each website (optional)
+            time_range: Filter results by time range (optional). Valid values: past_hour, past_24_hours, past_week, past_month, past_year
 
         Returns:
             Dictionary containing search results and reference URLs
@@ -251,14 +252,18 @@ class ScapeGraphClient:
         data = {
             "user_prompt": user_prompt
         }
-        
+
         # Add num_results to the request if provided
         if num_results is not None:
             data["num_results"] = num_results
-            
+
         # Add number_of_scrolls to the request if provided
         if number_of_scrolls is not None:
             data["number_of_scrolls"] = number_of_scrolls
+
+        # Add time_range to the request if provided
+        if time_range is not None:
+            data["time_range"] = time_range
 
         response = self.client.post(url, headers=self.headers, json=data)
 
@@ -1829,7 +1834,8 @@ def searchscraper(
     user_prompt: str,
     ctx: Context,
     num_results: Optional[int] = None,
-    number_of_scrolls: Optional[int] = None
+    number_of_scrolls: Optional[int] = None,
+    time_range: Optional[Literal["past_hour", "past_24_hours", "past_week", "past_month", "past_year"]] = None
 ) -> Dict[str, Any]:
     """
     Perform AI-powered web searches with structured data extraction.
@@ -1877,6 +1883,22 @@ def searchscraper(
               * 5: Extensive feeds, long-form content with infinite scroll
             - Note: Increases processing time significantly (adds 5-10 seconds per scroll per page)
 
+        time_range (Optional[str]): Filter search results by time range.
+            - Default: None (no time filter applied)
+            - Valid values:
+              * "past_hour": Results from the last hour
+              * "past_24_hours": Results from the last 24 hours
+              * "past_week": Results from the last 7 days
+              * "past_month": Results from the last 30 days
+              * "past_year": Results from the last 365 days
+            - Examples:
+              * Use "past_hour" for breaking news or real-time updates
+              * Use "past_24_hours" for recent developments
+              * Use "past_week" for current events and trending topics
+              * Use "past_month" for recent but not immediate information
+              * Use "past_year" for relatively recent content
+            - Note: Useful for finding recent information or filtering out outdated content
+
     Returns:
         Dictionary containing:
         - search_results: Array of extracted data from each website found
@@ -1903,7 +1925,7 @@ def searchscraper(
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.searchscraper(user_prompt, num_results, number_of_scrolls)
+        return client.searchscraper(user_prompt, num_results, number_of_scrolls, time_range)
     except Exception as e:
         return {"error": str(e)}
 
