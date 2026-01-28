@@ -178,7 +178,7 @@ Quick reference to all MCP tools:
 |------|------------|---------|---------|-------|
 | `markdownify` | `website_url` | Convert webpage to markdown | 2 | No |
 | `smartscraper` | `user_prompt`, `website_url`, `number_of_scrolls?`, `markdown_only?` | AI-powered data extraction | 10+ | No |
-| `searchscraper` | `user_prompt`, `num_results?`, `number_of_scrolls?` | AI-powered web search | Variable | No |
+| `searchscraper` | `user_prompt`, `num_results?`, `number_of_scrolls?`, `time_range?` | AI-powered web search | Variable | No |
 | `smartcrawler_initiate` | `url`, `prompt?`, `extraction_mode`, `depth?`, `max_pages?`, `same_domain_only?` | Start multi-page crawl | 100+ | Yes (returns request_id) |
 | `smartcrawler_fetch_results` | `request_id` | Get crawl results | N/A | No (polls status) |
 
@@ -375,6 +375,11 @@ npx @modelcontextprotocol/inspector scrapegraph-mcp
 ---
 
 ## 📅 Changelog
+
+### January 2026
+- ✅ Added `time_range` parameter to SearchScraper for filtering results by recency
+- ✅ Supported time ranges: `past_hour`, `past_24_hours`, `past_week`, `past_month`, `past_year`
+- ✅ Documentation updated to reflect SDK changes (scrapegraph-py#77, scrapegraph-js#2)
 
 ### October 2025
 - ✅ Initial comprehensive documentation created
