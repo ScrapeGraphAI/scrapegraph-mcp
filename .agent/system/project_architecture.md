@@ -1,6 +1,6 @@
 # ScrapeGraph MCP Server - Project Architecture
 
-**Last Updated:** October 2025
+**Last Updated:** January 2026
 **Version:** 1.0.0
 
 ## Table of Contents
@@ -255,7 +255,7 @@ The server exposes 5 tools to AI assistants:
 
 ---
 
-### 3. `searchscraper(user_prompt: str, num_results: int = None, number_of_scrolls: int = None)`
+### 3. `searchscraper(user_prompt: str, num_results: int = None, number_of_scrolls: int = None, time_range: str = None)`
 
 **Purpose:** Perform AI-powered web searches with structured results
 
@@ -263,6 +263,7 @@ The server exposes 5 tools to AI assistants:
 - `user_prompt` (str) - Search query or instructions
 - `num_results` (int, optional) - Number of websites to search (default: 3 = 30 credits)
 - `number_of_scrolls` (int, optional) - Number of infinite scrolls per website
+- `time_range` (str, optional) - Filter results by recency. Valid values: `past_hour`, `past_24_hours`, `past_week`, `past_month`, `past_year`
 
 **Returns:**
 ```json
@@ -282,7 +283,8 @@ The server exposes 5 tools to AI assistants:
 "Research the latest AI developments in 2025"
 → AI calls: searchscraper(
     user_prompt="Latest AI developments in 2025",
-    num_results=5
+    num_results=5,
+    time_range="past_week"
 )
 ```
 

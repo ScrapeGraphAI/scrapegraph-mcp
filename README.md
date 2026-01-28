@@ -96,11 +96,13 @@ Execute AI-powered web searches with structured, actionable results.
 searchscraper(
     user_prompt: str,
     num_results: int = None,
-    number_of_scrolls: int = None
+    number_of_scrolls: int = None,
+    time_range: str = None  # Filter by: past_hour, past_24_hours, past_week, past_month, past_year
 )
 ```
 - **Credits**: Variable (3-20 websites × 10 credits)
 - **Use case**: Multi-source research and data aggregation
+- **Time filtering**: Use `time_range` to filter results by recency (e.g., `"past_week"` for recent results)
 
 ### Advanced Scraping Tools
 
@@ -518,6 +520,7 @@ The server enables sophisticated queries across various scraping scenarios:
 - **SearchScraper**: "Research and summarize recent developments in AI-powered web scraping"
 - **SearchScraper**: "Search for the top 5 articles about machine learning frameworks and extract key insights"
 - **SearchScraper**: "Find recent news about GPT-4 and provide a structured summary"
+- **SearchScraper with time_range**: "Search for AI news from the past week only" (uses `time_range="past_week"`)
 
 ### Website Analysis
 - **Sitemap**: "Extract the complete sitemap structure from the ScrapeGraph website"
