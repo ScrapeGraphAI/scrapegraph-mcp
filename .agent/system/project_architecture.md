@@ -1,7 +1,7 @@
 # ScrapeGraph MCP Server - Project Architecture
 
-**Last Updated:** January 2026
-**Version:** 1.0.0
+**Last Updated:** April 2026
+**Version:** 2.0.0
 
 ## Table of Contents
 - [System Overview](#system-overview)
@@ -19,11 +19,12 @@
 
 The ScrapeGraph MCP Server is a production-ready [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) server that provides seamless integration between AI assistants (like Claude, Cursor, etc.) and the [ScrapeGraphAI API](https://scrapegraphai.com). This server enables language models to leverage advanced AI-powered web scraping capabilities with enterprise-grade reliability.
 
-**Key Capabilities:**
-- **Markdownify** - Convert webpages to clean, structured markdown
-- **SmartScraper** - AI-powered structured data extraction from webpages
-- **SearchScraper** - AI-powered web searches with structured results
-- **SmartCrawler** - Intelligent multi-page web crawling with AI extraction or markdown conversion
+**Key Capabilities (API v2):**
+- **Scrape** (`markdownify`, `scrape`) — POST `/api/v2/scrape`
+- **Extract** (`smartscraper`) — POST `/api/v2/extract` (URL-only)
+- **Search** (`searchscraper`) — POST `/api/v2/search`
+- **Crawl** — POST/GET `/api/v2/crawl` (+ stop/resume); markdown/html crawl only
+- **Monitor, credits, history** — `/api/v2/monitor`, `/credits`, `/history`
 
 **Purpose:**
 - Bridge AI assistants (Claude, Cursor, etc.) with web scraping capabilities
@@ -129,7 +130,7 @@ AI Assistant (Claude/Cursor)
     ↓ (stdio via MCP)
 FastMCP Server (this project)
     ↓ (HTTPS API calls)
-ScrapeGraphAI API (https://api.scrapegraphai.com/v1)
+ScrapeGraphAI API (default https://api.scrapegraphai.com/api/v2)
     ↓ (web scraping)
 Target Websites
 ```
@@ -139,10 +140,10 @@ Target Websites
 The server follows a simple, single-file architecture:
 
 **`ScapeGraphClient` Class:**
-- HTTP client wrapper for ScrapeGraphAI API
-- Base URL: `https://api.scrapegraphai.com/v1`
-- API key authentication via `SGAI-APIKEY` header
-- Methods: `markdownify()`, `smartscraper()`, `searchscraper()`, `smartcrawler_initiate()`, `smartcrawler_fetch_results()`
+- HTTP client wrapper for ScrapeGraphAI API v2 ([scrapegraph-py#82](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/82))
+- Base URL: `https://api.scrapegraphai.com/api/v2` (override with env `SCRAPEGRAPH_API_BASE_URL`)
+- Auth: `Authorization: Bearer`, `SGAI-APIKEY`, `X-SDK-Version: scrapegraph-mcp@2.0.0`
+- v2 methods include `scrape_v2`, `extract`, `search_api`, `crawl_*`, `monitor_*`, `credits`, `history`, plus compatibility wrappers used by MCP tools
 
 **FastMCP Server:**
 - Created with `FastMCP("ScapeGraph API MCP Server")`
@@ -185,7 +186,9 @@ The server follows a simple, single-file architecture:
 
 ## MCP Tools
 
-The server exposes 5 tools to AI assistants:
+The server exposes many `@mcp.tool()` handlers (see repository `README.md` for the full table). The detailed subsections below still use **v1-style endpoint names** in several places; treat them as illustrative and prefer the v2 mapping in **API Integration**.
+
+**v2 tool names:** `markdownify`, `scrape`, `smartscraper`, `searchscraper`, `smartcrawler_initiate`, `smartcrawler_fetch_results`, `crawl_stop`, `crawl_resume`, `credits`, `sgai_history`, `monitor_create`, `monitor_list`, `monitor_get`, `monitor_pause`, `monitor_resume`, `monitor_delete`.
 
 ### 1. `markdownify(website_url: str)`
 
@@ -388,21 +391,29 @@ If status is "completed":
 
 ### ScrapeGraphAI API
 
-**Base URL:** `https://api.scrapegraphai.com/v1`
+**Base URL:** `https://api.scrapegraphai.com/api/v2` (configurable via `SCRAPEGRAPH_API_BASE_URL`)
 
 **Authentication:**
-- Header: `SGAI-APIKEY: your-api-key`
+- Headers: `Authorization: Bearer <key>`, `SGAI-APIKEY: <key>`
 - Obtain API key from: [ScrapeGraph Dashboard](https://dashboard.scrapegraphai.com)
 
-**Endpoints Used:**
+**Endpoints used (v2):**
 
-| Endpoint | Method | Tool |
-|----------|--------|------|
-| `/v1/markdownify` | POST | `markdownify()` |
-| `/v1/smartscraper` | POST | `smartscraper()` |
-| `/v1/searchscraper` | POST | `searchscraper()` |
-| `/v1/crawl` | POST | `smartcrawler_initiate()` |
-| `/v1/crawl/{request_id}` | GET | `smartcrawler_fetch_results()` |
+| Endpoint | Method | MCP tools (typical) |
+|----------|--------|---------------------|
+| `/scrape` | POST | `markdownify`, `scrape` |
+| `/extract` | POST | `smartscraper` |
+| `/search` | POST | `searchscraper` |
+| `/crawl` | POST | `smartcrawler_initiate` |
+| `/crawl/{id}` | GET | `smartcrawler_fetch_results` |
+| `/crawl/{id}/stop` | POST | `crawl_stop` |
+| `/crawl/{id}/resume` | POST | `crawl_resume` |
+| `/credits` | GET | `credits` |
+| `/history` | GET | `sgai_history` |
+| `/monitor` | POST, GET | `monitor_create`, `monitor_list` |
+| `/monitor/{id}` | GET, DELETE | `monitor_get`, `monitor_delete` |
+| `/monitor/{id}/pause` | POST | `monitor_pause` |
+| `/monitor/{id}/resume` | POST | `monitor_resume` |
 
 **Request Format:**
 ```json

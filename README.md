@@ -26,18 +26,21 @@ A production-ready [Model Context Protocol](https://modelcontextprotocol.io/intr
 - [Technology Stack](#technology-stack)
 - [License](#license)
 
+## API v2
+
+This MCP server targets **ScrapeGraph API v2** (`https://api.scrapegraphai.com/api/v2`), aligned with
+[scrapegraph-py PR #82](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/82). Auth sends both
+`Authorization: Bearer` and `SGAI-APIKEY`. Override the base URL with **`SCRAPEGRAPH_API_BASE_URL`** if needed.
+
 ## Key Features
 
-- **8 Powerful Tools**: From simple markdown conversion to complex multi-page crawling and agentic workflows
-- **AI-Powered Extraction**: Intelligently extract structured data using natural language prompts
-- **Multi-Page Crawling**: SmartCrawler supports asynchronous crawling with configurable depth and page limits
-- **Infinite Scroll Support**: Handle dynamic content loading with configurable scroll counts
-- **JavaScript Rendering**: Full support for JavaScript-heavy websites
-- **Flexible Output Formats**: Get results as markdown, structured JSON, or custom schemas
-- **Easy Integration**: Works seamlessly with Claude Desktop, Cursor, and any MCP-compatible client
-- **Enterprise-Ready**: Robust error handling, timeout management, and production-tested reliability
-- **Simple Deployment**: One-command installation via Smithery or manual setup
-- **Comprehensive Documentation**: Detailed developer docs in `.agent/` folder
+- **Scrape & extract**: `markdownify` / `scrape` (POST /scrape), `smartscraper` (POST /extract, URL only)
+- **Search**: `searchscraper` (POST /search; `num_results` clamped 3–20)
+- **Crawl**: Async multi-page crawl in **markdown** or **html** only; `crawl_stop` / `crawl_resume`
+- **Monitors**: Scheduled jobs via `monitor_create`, `monitor_list`, `monitor_get`, pause/resume/delete
+- **Account**: `credits`, `sgai_history`
+- **Easy integration**: Claude Desktop, Cursor, Smithery, HTTP transport
+- **Developer docs**: `.agent/` folder
 
 ## Quick Start
 
@@ -62,112 +65,20 @@ That's it! The server is now available to your AI assistant.
 
 ## Available Tools
 
-The server provides **8 enterprise-ready tools** for AI-powered web scraping:
+| Tool | Role |
+|------|------|
+| `markdownify` | POST /scrape (markdown) |
+| `scrape` | POST /scrape (`output_format`: markdown, html, screenshot, branding) |
+| `smartscraper` | POST /extract (requires `website_url`; no inline HTML/markdown body on v2) |
+| `searchscraper` | POST /search (`num_results` 3–20; `time_range` / `number_of_scrolls` ignored on v2) |
+| `smartcrawler_initiate` | POST /crawl — `extraction_mode` **`markdown`** or **`html`** (default markdown). No AI crawl across pages. |
+| `smartcrawler_fetch_results` | GET /crawl/:id |
+| `crawl_stop`, `crawl_resume` | POST /crawl/:id/stop \| resume |
+| `credits` | GET /credits |
+| `sgai_history` | GET /history |
+| `monitor_create`, `monitor_list`, `monitor_get`, `monitor_pause`, `monitor_resume`, `monitor_delete` | /monitor API |
 
-### Core Scraping Tools
-
-#### 1. `markdownify`
-Transform any webpage into clean, structured markdown format.
-
-```python
-markdownify(website_url: str)
-```
-- **Credits**: 2 per request
-- **Use case**: Quick webpage content extraction in markdown
-
-#### 2. `smartscraper`
-Leverage AI to extract structured data from any webpage with support for infinite scrolling.
-
-```python
-smartscraper(
-    user_prompt: str,
-    website_url: str,
-    number_of_scrolls: int = None,
-    markdown_only: bool = None
-)
-```
-- **Credits**: 10+ (base) + variable based on scrolling
-- **Use case**: AI-powered data extraction with custom prompts
-
-#### 3. `searchscraper`
-Execute AI-powered web searches with structured, actionable results.
-
-```python
-searchscraper(
-    user_prompt: str,
-    num_results: int = None,
-    number_of_scrolls: int = None,
-    time_range: str = None  # Filter by: past_hour, past_24_hours, past_week, past_month, past_year
-)
-```
-- **Credits**: Variable (3-20 websites × 10 credits)
-- **Use case**: Multi-source research and data aggregation
-- **Time filtering**: Use `time_range` to filter results by recency (e.g., `"past_week"` for recent results)
-
-### Advanced Scraping Tools
-
-#### 4. `scrape`
-Basic scraping endpoint to fetch page content with optional heavy JavaScript rendering.
-
-```python
-scrape(website_url: str, render_heavy_js: bool = None)
-```
-- **Use case**: Simple page content fetching with JS rendering support
-
-#### 5. `sitemap`
-Extract sitemap URLs and structure for any website.
-
-```python
-sitemap(website_url: str)
-```
-- **Use case**: Website structure analysis and URL discovery
-
-### Multi-Page Crawling
-
-#### 6. `smartcrawler_initiate`
-Initiate intelligent multi-page web crawling (asynchronous operation).
-
-```python
-smartcrawler_initiate(
-    url: str,
-    prompt: str = None,
-    extraction_mode: str = "ai",
-    depth: int = None,
-    max_pages: int = None,
-    same_domain_only: bool = None
-)
-```
-- **AI Extraction Mode**: 10 credits per page - extracts structured data
-- **Markdown Mode**: 2 credits per page - converts to markdown
-- **Returns**: `request_id` for polling
-- **Use case**: Large-scale website crawling and data extraction
-
-#### 7. `smartcrawler_fetch_results`
-Retrieve results from asynchronous crawling operations.
-
-```python
-smartcrawler_fetch_results(request_id: str)
-```
-- **Returns**: Status and results when crawling is complete
-- **Use case**: Poll for crawl completion and retrieve results
-
-### Intelligent Agent-Based Scraping
-
-#### 8. `agentic_scrapper`
-Run advanced agentic scraping workflows with customizable steps and structured output schemas.
-
-```python
-agentic_scrapper(
-    url: str,
-    user_prompt: str = None,
-    output_schema: dict = None,
-    steps: list = None,
-    ai_extraction: bool = None,
-    persistent_session: bool = None,
-    timeout_seconds: float = None
-)
-```
-- **Use case**: Complex multi-step workflows with custom schemas and persistent sessions
+**Removed vs older MCP releases:** `sitemap`, `agentic_scrapper`, `markdownify_status`, `smartscraper_status` (no v2 endpoints).
 
 ## Setup Instructions
 
@@ -482,7 +393,7 @@ root_agent = LlmAgent(
 - Adjust based on your use case (crawling operations may need even longer timeouts)
 
 **Tool Filtering:**
-- By default, all 8 tools are exposed to the agent
+- By default, all registered MCP tools are exposed to the agent (see [Available Tools](#available-tools))
 - Use `tool_filter` to limit which tools are available:
   ```python
   tool_filter=['markdownify', 'smartscraper', 'searchscraper']
@@ -520,20 +431,18 @@ The server enables sophisticated queries across various scraping scenarios:
 - **SearchScraper**: "Research and summarize recent developments in AI-powered web scraping"
 - **SearchScraper**: "Search for the top 5 articles about machine learning frameworks and extract key insights"
 - **SearchScraper**: "Find recent news about GPT-4 and provide a structured summary"
-- **SearchScraper with time_range**: "Search for AI news from the past week only" (uses `time_range="past_week"`)
+- **SearchScraper**: v2 does not apply `time_range`; phrase queries to bias recency in natural language instead
 
-### Website Analysis
-- **Sitemap**: "Extract the complete sitemap structure from the ScrapeGraph website"
-- **Sitemap**: "Discover all URLs on this blog site"
+### Website analysis
+- Use **`smartcrawler_initiate`** (markdown/html) plus **`smartcrawler_fetch_results`** to map and capture multi-page content; there is no separate **sitemap** tool on v2.
 
-### Multi-Page Crawling
-- **SmartCrawler (AI mode)**: "Crawl the entire documentation site and extract all API endpoints with descriptions"
-- **SmartCrawler (Markdown mode)**: "Convert all pages in the blog to markdown up to 2 levels deep"
-- **SmartCrawler**: "Extract all product information from an e-commerce site, maximum 100 pages, same domain only"
+### Multi-page crawling
+- **SmartCrawler (markdown/html)**: "Crawl the blog in markdown mode and poll until complete"
+- For structured fields per page, run **`smartscraper`** on individual URLs (or **`monitor_create`** on a schedule)
 
-### Advanced Agentic Scraping
-- **Agentic Scraper**: "Navigate through a multi-step authentication form and extract user dashboard data"
-- **Agentic Scraper with schema**: "Follow pagination links and compile a dataset with schema: {title, author, date, content}"
+### Monitors and account
+- **Monitor**: "Run this extract prompt on https://example.com every day at 9am" (`monitor_create` with cron)
+- **Credits / history**: `credits`, `sgai_history`
 - **Agentic Scraper**: "Execute a complex workflow: login, navigate to reports, download data, and extract summary statistics"
 
 ## Error Handling

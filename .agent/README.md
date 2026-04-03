@@ -12,7 +12,7 @@ Complete system architecture documentation including:
 - **Technology Stack** - Python 3.10+, FastMCP, httpx dependencies
 - **Project Structure** - File organization and key files
 - **Core Architecture** - MCP design, server architecture, patterns
-- **MCP Tools** - All 5 tools (markdownify, smartscraper, searchscraper, smartcrawler_initiate, smartcrawler_fetch_results)
+- **MCP Tools** - API v2 tools (markdownify, scrape, smartscraper, searchscraper, crawl, credits, history, monitor, …)
 - **API Integration** - ScrapeGraphAI API endpoints and credit system
 - **Deployment** - Smithery, Claude Desktop, Cursor, Docker setup
 - **Recent Updates** - SmartCrawler integration and latest features
@@ -95,7 +95,7 @@ Complete Model Context Protocol integration documentation:
 
 **...available tools and their parameters:**
 - Read: [Project Architecture - MCP Tools](./system/project_architecture.md#mcp-tools)
-- Quick reference: 5 tools (markdownify, smartscraper, searchscraper, smartcrawler_initiate, smartcrawler_fetch_results)
+- Quick reference: see README “Available Tools” table (v2: + scrape, crawl_stop/resume, credits, sgai_history, monitor_*; removed sitemap, agentic_scrapper, *\_status tools)
 
 **...error handling:**
 - Read: [MCP Protocol - Error Handling](./system/mcp_protocol.md#error-handling)
@@ -134,6 +134,7 @@ npx @modelcontextprotocol/inspector scrapegraph-mcp
 **Manual Testing (stdio):**
 ```bash
 echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"markdownify","arguments":{"website_url":"https://scrapegraphai.com"}},"id":1}' | scrapegraph-mcp
+# (v2: same tool name; backend calls POST /scrape)
 ```
 
 **Integration Testing (Claude Desktop):**
@@ -174,13 +175,14 @@ echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | docker run -i -e SGAI_AP
 
 Quick reference to all MCP tools:
 
-| Tool | Parameters | Purpose | Credits | Async |
-|------|------------|---------|---------|-------|
-| `markdownify` | `website_url` | Convert webpage to markdown | 2 | No |
-| `smartscraper` | `user_prompt`, `website_url`, `number_of_scrolls?`, `markdown_only?` | AI-powered data extraction | 10+ | No |
-| `searchscraper` | `user_prompt`, `num_results?`, `number_of_scrolls?`, `time_range?` | AI-powered web search | Variable | No |
-| `smartcrawler_initiate` | `url`, `prompt?`, `extraction_mode`, `depth?`, `max_pages?`, `same_domain_only?` | Start multi-page crawl | 100+ | Yes (returns request_id) |
-| `smartcrawler_fetch_results` | `request_id` | Get crawl results | N/A | No (polls status) |
+| Tool | Notes |
+|------|--------|
+| `markdownify` / `scrape` | POST /scrape (v2) |
+| `smartscraper` | POST /extract; URL only |
+| `searchscraper` | POST /search; num_results 3–20 |
+| `smartcrawler_*`, `crawl_stop`, `crawl_resume` | POST/GET /crawl |
+| `credits`, `sgai_history` | GET /credits, /history |
+| `monitor_*` | /monitor namespace |
 
 For detailed tool documentation, see [Project Architecture - MCP Tools](./system/project_architecture.md#mcp-tools).
 
@@ -376,8 +378,11 @@ npx @modelcontextprotocol/inspector scrapegraph-mcp
 
 ## 📅 Changelog
 
+### April 2026
+- ✅ Migrated MCP client and tools to **API v2** ([scrapegraph-py#82](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/82)): base `https://api.scrapegraphai.com/api/v2`, Bearer + SGAI-APIKEY, new crawl/monitor/credits/history tools; removed sitemap, agentic_scrapper, status polling tools.
+
 ### January 2026
-- ✅ Added `time_range` parameter to SearchScraper for filtering results by recency
+- ✅ Added `time_range` parameter to SearchScraper for filtering results by recency (v1-era; **ignored on API v2**)
 - ✅ Supported time ranges: `past_hour`, `past_24_hours`, `past_week`, `past_month`, `past_year`
 - ✅ Documentation updated to reflect SDK changes (scrapegraph-py#77, scrapegraph-js#2)
 

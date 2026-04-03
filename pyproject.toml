@@ -1,6 +1,6 @@
 [project]
 name = "scrapegraph-mcp"
-version = "1.0.1"
+version = "2.0.0"
 description = "MCP server for ScapeGraph API integration"
 license = {text = "MIT"}
 readme = "README.md"
@@ -51,6 +51,10 @@ only-packages = true
 line-length = 100
 target-version = "py312"
 select = ["E", "F", "I", "B", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+# MCP tool docstrings and embedded guides exceed 100 cols by design.
+"src/scrapegraph_mcp/server.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
