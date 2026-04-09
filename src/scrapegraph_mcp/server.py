@@ -124,26 +124,48 @@ class ScapeGraphClient:
     def _fetch_config(
         self,
         *,
+        mode: Optional[str] = None,
+        timeout: Optional[int] = None,
+        wait: Optional[int] = None,
         headers: Optional[Dict[str, str]] = None,
-        stealth: Optional[bool] = None,
-        mock: Optional[bool] = None,
+        cookies: Optional[Dict[str, str]] = None,
+        country: Optional[str] = None,
         scrolls: Optional[int] = None,
-        render_js: Optional[bool] = None,
-        wait_ms: Optional[int] = None,
+        mock: Optional[bool] = None,
     ) -> Optional[Dict[str, Any]]:
         cfg: Dict[str, Any] = {}
+        if mode is not None:
+            cfg["mode"] = mode
+        if timeout is not None:
+            cfg["timeout"] = timeout
+        if wait is not None:
+            cfg["wait"] = wait
         if headers is not None:
             cfg["headers"] = headers
-        if stealth is not None:
-            cfg["stealth"] = stealth
-        if mock is not None:
-            cfg["mock"] = mock
+        if cookies is not None:
+            cfg["cookies"] = cookies
+        if country is not None:
+            cfg["country"] = country
         if scrolls is not None:
             cfg["scrolls"] = scrolls
-        if render_js is not None:
-            cfg["render_js"] = render_js
-        if wait_ms is not None:
-            cfg["wait_ms"] = wait_ms
+        if mock is not None:
+            cfg["mock"] = mock
+        return cfg or None
+
+    @staticmethod
+    def _llm_config(
+        *,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
+        cfg: Dict[str, Any] = {}
+        if model is not None:
+            cfg["model"] = model
+        if temperature is not None:
+            cfg["temperature"] = temperature
+        if max_tokens is not None:
+            cfg["max_tokens"] = max_tokens
         return cfg or None
 
     def scrape_v2(
@@ -175,14 +197,19 @@ class ScapeGraphClient:
     def markdownify(
         self,
         website_url: str,
+        mode: Optional[str] = None,
         headers: Optional[Dict[str, str]] = None,
-        stealth: Optional[bool] = None,
-        stream: Optional[bool] = None,
+        cookies: Optional[Dict[str, str]] = None,
+        country: Optional[str] = None,
+        timeout: Optional[int] = None,
+        wait: Optional[int] = None,
+        scrolls: Optional[int] = None,
         mock: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        if stream is not None:
-            logger.warning("stream is not supported on API v2 /scrape; ignoring")
-        fc = self._fetch_config(headers=headers, stealth=stealth, mock=mock)
+        fc = self._fetch_config(
+            mode=mode, timeout=timeout, wait=wait, headers=headers,
+            cookies=cookies, country=country, scrolls=scrolls, mock=mock,
+        )
         return self.scrape_v2(website_url, "markdown", fetch_config_dict=fc)
 
     def extract(
@@ -191,86 +218,63 @@ class ScapeGraphClient:
         website_url: str,
         output_schema: Optional[Dict[str, Any]] = None,
         fetch_config_dict: Optional[Dict[str, Any]] = None,
+        llm_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         body: Dict[str, Any] = {"url": website_url, "prompt": user_prompt}
         if output_schema is not None:
             body["output_schema"] = output_schema
         if fetch_config_dict:
             body["fetch_config"] = fetch_config_dict
+        if llm_config_dict:
+            body["llm_config"] = llm_config_dict
         return self._request("POST", "/extract", json_body=body)
 
     def smartscraper(
         self,
         user_prompt: str,
-        website_url: Optional[str] = None,
-        website_html: Optional[str] = None,
-        website_markdown: Optional[str] = None,
+        website_url: str,
         output_schema: Optional[Dict[str, Any]] = None,
-        number_of_scrolls: Optional[int] = None,
-        total_pages: Optional[int] = None,
-        render_heavy_js: Optional[bool] = None,
-        stealth: Optional[bool] = None,
+        fetch_config_dict: Optional[Dict[str, Any]] = None,
+        llm_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        if website_html is not None or website_markdown is not None:
-            raise ValueError(
-                "API v2 extract supports URL input only; website_html and website_markdown "
-                "are not supported."
-            )
-        if website_url is None:
-            raise ValueError("Must provide website_url")
-        if total_pages is not None and total_pages != 1:
-            raise ValueError(
-                "total_pages is not supported for extract on API v2; omit it or use 1, or use "
-                "smartcrawler_initiate for multi-page markdown/html crawl."
-            )
-        fc = self._fetch_config(
-            stealth=stealth, scrolls=number_of_scrolls, render_js=render_heavy_js
-        )
-        return self.extract(user_prompt, website_url, output_schema, fc)
+        return self.extract(user_prompt, website_url, output_schema, fetch_config_dict, llm_config_dict)
 
     def search_api(
         self,
         query: str,
         num_results: Optional[int] = None,
         output_schema: Optional[Dict[str, Any]] = None,
+        llm_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         n = 5 if num_results is None else num_results
         n = max(3, min(20, n))
         body: Dict[str, Any] = {"query": query, "num_results": n}
         if output_schema is not None:
             body["output_schema"] = output_schema
+        if llm_config_dict:
+            body["llm_config"] = llm_config_dict
         return self._request("POST", "/search", json_body=body)
 
     def searchscraper(
         self,
         user_prompt: str,
         num_results: Optional[int] = None,
-        number_of_scrolls: Optional[int] = None,
-        time_range: Optional[str] = None,
+        output_schema: Optional[Dict[str, Any]] = None,
+        llm_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        if time_range is not None:
-            logger.warning("time_range is not supported on API v2 /search; ignoring")
-        if number_of_scrolls is not None:
-            logger.warning("number_of_scrolls is not supported on API v2 /search; ignoring")
-        return self.search_api(user_prompt, num_results=num_results)
+        return self.search_api(user_prompt, num_results=num_results, output_schema=output_schema, llm_config_dict=llm_config_dict)
 
     def scrape(
         self,
         website_url: str,
-        render_heavy_js: Optional[bool] = None,
-        mock: Optional[bool] = None,
-        stealth: Optional[bool] = None,
-        stream: Optional[bool] = None,
         output_format: str = "markdown",
         screenshot_full_page: bool = False,
+        fetch_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        if stream is not None:
-            logger.warning("stream is not supported on API v2 /scrape; ignoring")
-        fc = self._fetch_config(stealth=stealth, mock=mock, render_js=render_heavy_js)
         return self.scrape_v2(
             website_url,
             output_format,
-            fetch_config_dict=fc,
+            fetch_config_dict=fetch_config_dict,
             screenshot_full_page=screenshot_full_page,
         )
 
@@ -301,47 +305,6 @@ class ScapeGraphClient:
         if fetch_config_dict:
             body["fetch_config"] = fetch_config_dict
         return self._request("POST", "/crawl", json_body=body)
-
-    def smartcrawler_initiate(
-        self,
-        url: str,
-        prompt: Optional[str] = None,
-        extraction_mode: str = "markdown",
-        depth: Optional[int] = None,
-        max_pages: Optional[int] = None,
-        same_domain_only: Optional[bool] = None,
-        include_patterns: Optional[List[str]] = None,
-        exclude_patterns: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
-        if extraction_mode == "ai":
-            raise ValueError(
-                "API v2 crawl does not support AI extraction across pages. Use smartscraper "
-                "(extract) for a single URL, or monitor_create for scheduled jobs. Use "
-                "extraction_mode 'markdown' or 'html' for multi-page crawl."
-            )
-        if extraction_mode not in ("markdown", "html"):
-            raise ValueError("extraction_mode must be 'markdown', 'html', or (deprecated) 'ai'")
-        if prompt is not None and extraction_mode in ("markdown", "html"):
-            logger.warning("prompt is ignored for markdown/html crawl on API v2")
-        if same_domain_only is not None:
-            logger.warning(
-                "same_domain_only is not supported on API v2 crawl; use include_patterns / "
-                "exclude_patterns"
-            )
-        d = 2 if depth is None else depth
-        mp = 10 if max_pages is None else max_pages
-        if d < 1 or d > 10:
-            raise ValueError("depth must be between 1 and 10")
-        if mp < 1 or mp > 100:
-            raise ValueError("max_pages must be between 1 and 100")
-        return self.crawl_start(
-            url,
-            depth=d,
-            max_pages=mp,
-            crawl_format="markdown" if extraction_mode == "markdown" else "html",
-            include_patterns=include_patterns,
-            exclude_patterns=exclude_patterns,
-        )
 
     def smartcrawler_fetch_results(self, request_id: str) -> Dict[str, Any]:
         return self._request("GET", f"/crawl/{request_id}")
@@ -381,6 +344,8 @@ class ScapeGraphClient:
         prompt: str,
         cron: str,
         output_schema: Optional[Dict[str, Any]] = None,
+        fetch_config_dict: Optional[Dict[str, Any]] = None,
+        llm_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         body: Dict[str, Any] = {
             "name": name,
@@ -390,6 +355,10 @@ class ScapeGraphClient:
         }
         if output_schema is not None:
             body["output_schema"] = output_schema
+        if fetch_config_dict:
+            body["fetch_config"] = fetch_config_dict
+        if llm_config_dict:
+            body["llm_config"] = llm_config_dict
         return self._request("POST", "/monitor", json_body=body)
 
     def monitor_list(self) -> Dict[str, Any]:
@@ -853,76 +822,62 @@ This guide provides comprehensive documentation for every parameter across all S
 
 ---
 
-## 🚀 Performance Parameters
+## 🚀 Fetch/Proxy Parameters
 
-### `render_heavy_js`
-**Used in**: smartscraper, scrape
+### `mode`
+**Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
 
-- **Type**: `Optional[bool]`
-- **Default**: `false`
-- **Purpose**: Enable JavaScript rendering for SPAs
-- **When to Use `true`**:
-  - React/Angular/Vue applications
-  - Dynamic content loading
-  - AJAX-heavy interfaces
-  - Content appearing after page load
-- **When to Use `false`**:
-  - Static websites
-  - Server-side rendered content
-  - Traditional HTML pages
-  - When speed is priority
+- **Type**: `Optional[str]`
+- **Default**: `auto`
+- **Options**:
+  - `"auto"`: Automatically selects the best provider chain
+  - `"fast"`: Direct HTTP fetch via impit (fastest, no JS)
+  - `"js"`: Headless browser rendering for JS-heavy pages
+  - `"direct+stealth"`: Residential proxy with stealth headers (no JS)
+  - `"js+stealth"`: JS rendering combined with stealth/residential proxy
 - **Performance Impact**:
-  - `false`: 2-5 seconds
-  - `true`: 15-30 seconds
+  - `fast`: 2-5 seconds
+  - `js`: 15-30 seconds
+  - `direct+stealth`/`js+stealth`: variable, depends on proxy
 - **Cost**: Same regardless of setting
 
-### `stealth`
-**Used in**: smartscraper
+### `timeout`
+**Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
+- **Type**: `Optional[int]`
+- **Range**: 1000-60000 milliseconds
+- **Purpose**: Request timeout
 
-- **Type**: `Optional[bool]`
-- **Default**: `false`
-- **Purpose**: Bypass basic bot detection
-- **When to Use**:
-  - Sites with anti-scraping measures
-  - E-commerce sites with protection
-  - Sites requiring "human-like" behavior
-- **Limitations**:
-  - Not 100% guaranteed
-  - May increase processing time
-  - Some advanced detection may still work
+### `wait`
+**Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
+- **Type**: `Optional[int]`
+- **Range**: 0-30000 milliseconds
+- **Purpose**: Wait after page load before scraping
+
+### `cookies`
+**Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
+- **Type**: `Optional[Dict[str, str]]`
+- **Purpose**: Cookies to send with the request
+
+### `country`
+**Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
+- **Type**: `Optional[str]`
+- **Purpose**: Two-letter country code for geo-located requests (e.g. 'us')
 
 ---
 
 ## 🔄 Crawling Parameters
 
-### `prompt`
-**Used in**: smartcrawler_initiate
-
-- **Type**: `Optional[str]`
-- **Required**: When `extraction_mode="ai"`
-- **Purpose**: AI extraction instructions for all crawled pages
-- **Examples**:
-  - `"Extract API endpoint name, method, parameters"`
-  - `"Get article title, author, publication date"`
-- **Best Practices**:
-  - Use general terms that apply across page types
-  - Consider varying page structures
-  - Be specific about desired fields
-
 ### `extraction_mode`
 **Used in**: smartcrawler_initiate
 
 - **Type**: `str`
-- **Default**: `"ai"`
+- **Default**: `"markdown"`
 - **Options**:
-  - `"ai"`: AI-powered extraction (10 credits/page)
   - `"markdown"`: Markdown conversion (2 credits/page)
-- **Cost Comparison**:
-  - AI mode: 50 pages = 500 credits
-  - Markdown mode: 50 pages = 100 credits
+  - `"html"`: HTML output
 - **Use Cases**:
-  - AI: Data collection, research, analysis
   - Markdown: Content archival, documentation backup
+  - HTML: Full HTML preservation
 
 ### `depth`
 **Used in**: smartcrawler_initiate
@@ -1098,7 +1053,7 @@ Parameters: website_url, user_prompt (if smartscraper)
 ### For Dynamic Content
 ```
 Tool: smartscraper or scrape
-Parameters: render_heavy_js=true, stealth=true (if needed)
+Parameters: mode="js" (or mode="js+stealth" if bot detection is present)
 ```
 
 ### For Multi-Page Content
@@ -1290,83 +1245,40 @@ URL → sitemap (map structure) → smartcrawler (batch process)
 def markdownify(
     website_url: str,
     ctx: Context,
+    mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
     headers: Optional[Dict[str, str]] = None,
-    stealth: Optional[bool] = None,
-    stream: Optional[bool] = None,
+    cookies: Optional[Dict[str, str]] = None,
+    country: Optional[str] = None,
+    timeout: Optional[int] = None,
+    wait: Optional[int] = None,
+    scrolls: Optional[int] = None,
     mock: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """
-    Convert a webpage into clean, formatted markdown.
-
-    This tool fetches any webpage and converts its content into clean, readable markdown format.
-    Useful for extracting content from documentation, articles, and web pages for further processing.
-    Costs 2 credits per page. Read-only operation with no side effects.
+    Convert a webpage into clean, formatted markdown (API v2 POST /scrape).
 
     Args:
-        website_url (str): The complete URL of the webpage to convert to markdown format.
-            - Must include protocol (http:// or https://)
-            - Supports most web content types (HTML, articles, documentation)
-            - Works with both static and dynamic content
-            - Examples:
-              * https://example.com/page
-              * https://docs.python.org/3/tutorial/
-              * https://github.com/user/repo/README.md
-            - Invalid examples:
-              * example.com (missing protocol)
-              * ftp://example.com (unsupported protocol)
-              * localhost:3000 (missing protocol)
-
-        headers (Optional[Dict[str, str]]): HTTP headers to include in the request.
-            - Custom headers to send with the HTTP request
-            - Useful for authentication, custom user agents, or API requirements
-            - Examples:
-              * {"User-Agent": "Custom Browser"}
-              * {"Authorization": "Bearer token"}
-              * {"Accept-Language": "en-US"}
-            - Default: None (uses standard headers)
-
-        stealth (Optional[bool]): Enable stealth mode to avoid bot detection.
-            - Default: false (standard request)
-            - Set to true to bypass basic anti-scraping measures
-            - Uses techniques to appear more like a human browser
-            - When to use true:
-              * Sites with bot detection systems
-              * Sites that block automated requests
-              * Protected content that requires human-like behavior
-            - Note: May increase processing time and is not 100% guaranteed
-
-        stream (Optional[bool]): Enable streaming response for real-time updates.
-            - Default: false (standard response)
-            - Set to true for streaming mode to receive data as it's being processed
-            - Useful for monitoring progress on large pages or slow conversions
-            - Provides real-time feedback during the markdown conversion
-
-        mock (Optional[bool]): Return mock data for testing purposes.
-            - Default: false (real conversion)
-            - Set to true to receive mock/sample markdown instead of actually converting the page
-            - Useful for testing and development without consuming credits
-            - When to use true:
-              * Testing your integration without making real requests
-              * Prototyping workflows before production use
-              * Development and debugging scenarios
-
-    Returns:
-        Dictionary containing:
-        - markdown: The converted markdown content as a string
-        - metadata: Additional information about the conversion (title, description, etc.)
-        - status: Success/error status of the operation
-        - credits_used: Number of credits consumed (always 2 for this operation)
-
-    Raises:
-        ValueError: If website_url is malformed or missing protocol
-        HTTPError: If the webpage cannot be accessed or returns an error
-        TimeoutError: If the webpage takes too long to load (>120 seconds)
+        website_url: URL to convert (must include http:// or https://).
+        mode: Fetch/proxy mode controlling how the page is retrieved.
+            - auto: Automatically selects the best provider chain (default).
+            - fast: Direct HTTP fetch via impit (fastest, no JS).
+            - js: Headless browser rendering for JavaScript-heavy pages.
+            - direct+stealth: Residential proxy with stealth headers (no JS).
+            - js+stealth: JS rendering combined with stealth/residential proxy.
+        headers: Custom HTTP headers to send with the request.
+        cookies: Cookies to send with the request.
+        country: Two-letter country code for geo-located requests (e.g. 'us').
+        timeout: Request timeout in milliseconds (1000-60000).
+        wait: Milliseconds to wait after page load before scraping (0-30000).
+        scrolls: Number of scrolls to perform (0-100).
+        mock: Use mock mode for testing (no credits consumed).
     """
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
         return client.markdownify(
-            website_url=website_url, headers=headers, stealth=stealth, stream=stream, mock=mock
+            website_url=website_url, mode=mode, headers=headers, cookies=cookies,
+            country=country, timeout=timeout, wait=wait, scrolls=scrolls, mock=mock,
         )
     except Exception as e:
         return {"error": str(e)}
@@ -1376,10 +1288,8 @@ def markdownify(
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
 def smartscraper(
     user_prompt: str,
+    website_url: str,
     ctx: Context,
-    website_url: Optional[str] = None,
-    website_html: Optional[str] = None,
-    website_markdown: Optional[str] = None,
     output_schema: Optional[
         Annotated[
             Union[str, Dict[str, Any]],
@@ -1390,130 +1300,37 @@ def smartscraper(
             ),
         ]
     ] = None,
-    number_of_scrolls: Optional[int] = None,
-    total_pages: Optional[int] = None,
-    render_heavy_js: Optional[bool] = None,
-    stealth: Optional[bool] = None,
+    mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
+    headers: Optional[Dict[str, str]] = None,
+    cookies: Optional[Dict[str, str]] = None,
+    country: Optional[str] = None,
+    timeout: Optional[int] = None,
+    wait: Optional[int] = None,
+    scrolls: Optional[int] = None,
+    mock: Optional[bool] = None,
+    llm_model: Optional[str] = None,
+    llm_temperature: Optional[float] = None,
+    llm_max_tokens: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Extract structured data from a webpage, HTML, or markdown using AI-powered extraction.
-
-    This tool uses advanced AI to understand your natural language prompt and extract specific
-    structured data from web content. Supports three input modes: URL scraping. Ideal for extracting product information, contact details,
-    article metadata, or any structured content. Costs 10 credits per page. Read-only operation.
+    Extract structured data from a webpage using AI (API v2 POST /extract).
 
     Args:
-        user_prompt (str): Natural language instructions describing what data to extract.
-            - Be specific about the fields you want for better results
-            - Use clear, descriptive language about the target data
-            - Examples:
-              * "Extract product name, price, description, and availability status"
-              * "Find all contact methods: email addresses, phone numbers, and social media links"
-              * "Get article title, author, publication date, and summary"
-              * "Extract all job listings with title, company, location, and salary"
-            - Tips for better results:
-              * Specify exact field names you want
-              * Mention data types (numbers, dates, URLs, etc.)
-              * Include context about where data might be located
-
-        website_url (Optional[str]): The complete URL of the webpage to scrape.
-            - Mutually exclusive with website_html and website_markdown
-            - Must include protocol (http:// or https://)
-            - Supports dynamic and static content
-            - Examples:
-              * https://example.com/products/item
-              * https://news.site.com/article/123
-              * https://company.com/contact
-            - Default: None (must provide one of the three input sources)
-
-        website_html (Optional[str]): Raw HTML content to process locally.
-            - Mutually exclusive with website_url and website_markdown
-            - Maximum size: 2MB
-            - Useful for processing pre-fetched or generated HTML
-            - Use when you already have HTML content from another source
-            - Example: "<html><body><h1>Title</h1><p>Content</p></body></html>"
-            - Default: None
-
-        website_markdown (Optional[str]): Markdown content to process locally.
-            - Mutually exclusive with website_url and website_html
-            - Maximum size: 2MB
-            - Useful for extracting from markdown documents or converted content
-            - Works well with documentation, README files, or converted web content
-            - Example: "# Title\n\n## Section\n\nContent here..."
-            - Default: None
-
-        output_schema (Optional[Union[str, Dict]]): JSON schema defining expected output structure.
-            - Can be provided as a dictionary or JSON string
-            - Helps ensure consistent, structured output format
-            - Optional but recommended for complex extractions
-            - IMPORTANT: Must include a "required" field (can be empty array [] if no fields are required)
-            - Examples:
-              * As dict: {'type': 'object', 'properties': {'title': {'type': 'string'}, 'price': {'type': 'number'}}, 'required': []}
-              * As JSON string: '{"type": "object", "properties": {"name": {"type": "string"}}, "required": []}'
-              * For arrays: {'type': 'array', 'items': {'type': 'object', 'properties': {...}, 'required': []}, 'required': []}
-              * With required fields: {'type': 'object', 'properties': {'name': {'type': 'string'}, 'email': {'type': 'string'}}, 'required': ['name', 'email']}
-            - Note: If "required" field is missing, it will be automatically added as an empty array []
-            - Default: None (AI will infer structure from prompt)
-
-        number_of_scrolls (Optional[int]): Number of infinite scrolls to perform before scraping.
-            - Range: 0-50 scrolls
-            - Default: 0 (no scrolling)
-            - Useful for dynamically loaded content (lazy loading, infinite scroll)
-            - Each scroll waits for content to load before continuing
-            - Examples:
-              * 0: Static content, no scrolling needed
-              * 3: Social media feeds, product listings
-              * 10: Long articles, extensive product catalogs
-            - Note: Increases processing time proportionally
-
-        total_pages (Optional[int]): Number of pages to process for pagination.
-            - Range: 1-100 pages
-            - Default: 1 (single page only)
-            - Automatically follows pagination links when available
-            - Useful for multi-page listings, search results, catalogs
-            - Examples:
-              * 1: Single page extraction
-              * 5: First 5 pages of search results
-              * 20: Comprehensive catalog scraping
-            - Note: Each page counts toward credit usage (10 credits × pages)
-
-        render_heavy_js (Optional[bool]): Enable heavy JavaScript rendering for dynamic sites.
-            - Default: false
-            - Set to true for Single Page Applications (SPAs), React apps, Vue.js sites
-            - Increases processing time but captures client-side rendered content
-            - Use when content is loaded dynamically via JavaScript
-            - Examples of when to use:
-              * React/Angular/Vue applications
-              * Sites with dynamic content loading
-              * AJAX-heavy interfaces
-              * Content that appears after page load
-            - Note: Significantly increases processing time (30-60 seconds vs 5-15 seconds)
-
-        stealth (Optional[bool]): Enable stealth mode to avoid bot detection.
-            - Default: false
-            - Helps bypass basic anti-scraping measures
-            - Uses techniques to appear more like a human browser
-            - Useful for sites with bot detection systems
-            - Examples of when to use:
-              * Sites that block automated requests
-              * E-commerce sites with protection
-              * Sites that require "human-like" behavior
-            - Note: May increase processing time and is not 100% guaranteed
-
-    Returns:
-        Dictionary containing:
-        - extracted_data: The structured data matching your prompt and optional schema
-        - metadata: Information about the extraction process
-        - credits_used: Number of credits consumed (10 per page processed)
-        - processing_time: Time taken for the extraction
-        - pages_processed: Number of pages that were analyzed
-        - status: Success/error status of the operation
-
-    Raises:
-        ValueError: If no input source provided or multiple sources provided
-        HTTPError: If website_url cannot be accessed
-        TimeoutError: If processing exceeds timeout limits
-        ValidationError: If output_schema is malformed JSON
+        user_prompt: Natural language instructions describing what data to extract.
+        website_url: URL to extract data from (must include http:// or https://).
+        output_schema: JSON schema (dict or JSON string) defining the expected output structure.
+            If "required" field is missing, it will be automatically added as [].
+        mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
+        headers: Custom HTTP headers.
+        cookies: Cookies to send with the request.
+        country: Two-letter country code for geo-located requests (e.g. 'us').
+        timeout: Request timeout in milliseconds (1000-60000).
+        wait: Milliseconds to wait after page load (0-30000).
+        scrolls: Number of scrolls to perform (0-100).
+        mock: Use mock mode for testing.
+        llm_model: LLM model to use for extraction.
+        llm_temperature: Sampling temperature (0.0-2.0).
+        llm_max_tokens: Maximum tokens in the response.
     """
     try:
         api_key = get_api_key(ctx)
@@ -1533,21 +1350,22 @@ def smartscraper(
             except json.JSONDecodeError as e:
                 return {"error": f"Invalid JSON for output_schema: {str(e)}"}
 
-        # Ensure output_schema has a 'required' field if it exists
         if normalized_schema is not None:
             if "required" not in normalized_schema:
                 normalized_schema["required"] = []
 
+        fc = client._fetch_config(
+            mode=mode, timeout=timeout, wait=wait, headers=headers,
+            cookies=cookies, country=country, scrolls=scrolls, mock=mock,
+        )
+        lc = client._llm_config(model=llm_model, temperature=llm_temperature, max_tokens=llm_max_tokens)
+
         return client.smartscraper(
             user_prompt=user_prompt,
             website_url=website_url,
-            website_html=website_html,
-            website_markdown=website_markdown,
             output_schema=normalized_schema,
-            number_of_scrolls=number_of_scrolls,
-            total_pages=total_pages,
-            render_heavy_js=render_heavy_js,
-            stealth=stealth,
+            fetch_config_dict=fc,
+            llm_config_dict=lc,
         )
     except Exception as e:
         return {"error": str(e)}
@@ -1559,76 +1377,50 @@ def searchscraper(
     user_prompt: str,
     ctx: Context,
     num_results: Optional[int] = None,
-    number_of_scrolls: Optional[int] = None,
-    time_range: Optional[
-        Literal["past_hour", "past_24_hours", "past_week", "past_month", "past_year"]
+    output_schema: Optional[
+        Annotated[
+            Union[str, Dict[str, Any]],
+            Field(
+                default=None,
+                description="JSON schema dict or JSON string for structured search output",
+                json_schema_extra={"oneOf": [{"type": "string"}, {"type": "object"}]},
+            ),
+        ]
     ] = None,
+    llm_model: Optional[str] = None,
+    llm_temperature: Optional[float] = None,
+    llm_max_tokens: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Perform AI-powered web searches with structured data extraction.
-
-    This tool searches the web based on your query and uses AI to extract structured information
-    from the search results. Ideal for research, competitive analysis, and gathering information
-    from multiple sources. Each website searched costs 10 credits (default 3 websites = 30 credits).
-    Read-only operation but results may vary over time (non-idempotent).
+    AI-powered web search with structured data extraction (API v2 POST /search).
 
     Args:
-        user_prompt (str): Search query or natural language instructions for information to find.
-            - Can be a simple search query or detailed extraction instructions
-            - The AI will search the web and extract relevant data from found pages
-            - Be specific about what information you want extracted
-            - Examples:
-              * "Find latest AI research papers published in 2024 with author names and abstracts"
-              * "Search for Python web scraping tutorials with ratings and difficulty levels"
-              * "Get current cryptocurrency prices and market caps for top 10 coins"
-              * "Find contact information for tech startups in San Francisco"
-              * "Search for job openings for data scientists with salary information"
-            - Tips for better results:
-              * Include specific fields you want extracted
-              * Mention timeframes or filters (e.g., "latest", "2024", "top 10")
-              * Specify data types needed (prices, dates, ratings, etc.)
-
-        num_results (Optional[int]): Number of search results (API v2 allows 3–20; values are clamped).
-            - Default: 5 (SDK v2 default)
-            - Examples:
-              * 1: Quick single-source lookup (10 credits)
-              * 3: Standard research (30 credits) - good balance of coverage and cost
-              * 5: Comprehensive research (50 credits)
-              * 10: Extensive analysis (100 credits)
-            - Note: More results provide broader coverage but increase costs and processing time
-
-        number_of_scrolls (Optional[int]): **Not supported on API v2** — ignored.
-
-        time_range (Optional[str]): **Not supported on API v2** — this parameter is ignored.
-            The v2 /search endpoint does not accept time_range; omit it or expect no effect.
-
-    Returns:
-        Dictionary containing:
-        - search_results: Array of extracted data from each website found
-        - sources: List of URLs that were searched and processed
-        - total_websites_processed: Number of websites successfully analyzed
-        - credits_used: Total credits consumed (num_results × 10)
-        - processing_time: Total time taken for search and extraction
-        - search_query_used: The actual search query sent to search engines
-        - metadata: Additional information about the search process
-
-    Raises:
-        ValueError: If user_prompt is empty or num_results is out of range
-        HTTPError: If search engines are unavailable or return errors
-        TimeoutError: If search or extraction process exceeds timeout limits
-        RateLimitError: If too many requests are made in a short time period
-
-    Note:
-        - Results may vary between calls due to changing web content (non-idempotent)
-        - Search engines may return different results over time
-        - Some websites may be inaccessible or block automated access
-        - Processing time increases with num_results and number_of_scrolls
-        - Consider using smartscraper on specific URLs if you know the target sites
+        user_prompt: Search query or natural language instructions.
+        num_results: Number of search results (3-20, default 5).
+        output_schema: JSON schema (dict or JSON string) for structured output.
+        llm_model: LLM model to use for extraction.
+        llm_temperature: Sampling temperature (0.0-2.0).
+        llm_max_tokens: Maximum tokens in the response.
     """
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.searchscraper(user_prompt, num_results, number_of_scrolls, time_range)
+
+        normalized_schema: Optional[Dict[str, Any]] = None
+        if isinstance(output_schema, dict):
+            normalized_schema = output_schema
+        elif isinstance(output_schema, str):
+            try:
+                parsed = json.loads(output_schema)
+                if isinstance(parsed, dict):
+                    normalized_schema = parsed
+                else:
+                    return {"error": "output_schema must be a JSON object"}
+            except json.JSONDecodeError as e:
+                return {"error": f"Invalid JSON for output_schema: {e}"}
+
+        lc = client._llm_config(model=llm_model, temperature=llm_temperature, max_tokens=llm_max_tokens)
+        return client.searchscraper(user_prompt, num_results=num_results, output_schema=normalized_schema, llm_config_dict=lc)
     except Exception as e:
         return {"error": str(e)}
 
@@ -1638,44 +1430,67 @@ def searchscraper(
 def smartcrawler_initiate(
     url: str,
     ctx: Context,
-    prompt: Optional[str] = None,
     extraction_mode: str = "markdown",
     depth: Optional[int] = None,
     max_pages: Optional[int] = None,
-    same_domain_only: Optional[bool] = None,
     include_patterns: Optional[List[str]] = None,
     exclude_patterns: Optional[List[str]] = None,
+    mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
+    headers: Optional[Dict[str, str]] = None,
+    cookies: Optional[Dict[str, str]] = None,
+    country: Optional[str] = None,
+    timeout: Optional[int] = None,
+    wait: Optional[int] = None,
+    scrolls: Optional[int] = None,
+    mock: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """
     Start an asynchronous multi-page crawl (API v2 POST /crawl).
 
-    API v2 supports **markdown** or **html** output per page only. Per-page AI extraction during crawl
-    is not available; use ``smartscraper`` for a single URL or ``monitor_create`` for scheduled extraction.
-
-    Poll ``smartcrawler_fetch_results`` with the returned job ``id`` until the crawl completes.
+    Supports markdown or html output only. Poll smartcrawler_fetch_results with the returned id.
 
     Args:
         url: Starting URL (http/https).
-        prompt: Ignored for markdown/html crawl (kept for signature compatibility).
-        extraction_mode: ``markdown`` (default) or ``html``. ``ai`` is not supported on v2 crawl.
-        depth: Crawl depth (1–10, default 2).
-        max_pages: Max pages (1–100, default 10).
-        same_domain_only: Not sent to v2 API; use ``include_patterns`` / ``exclude_patterns`` instead.
-        include_patterns: Optional URL patterns to include.
-        exclude_patterns: Optional URL patterns to exclude.
+        extraction_mode: 'markdown' (default) or 'html'.
+        depth: Crawl depth (1-10, default 2).
+        max_pages: Max pages (1-100, default 10).
+        include_patterns: URL patterns to include.
+        exclude_patterns: URL patterns to exclude.
+        mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
+        headers: Custom HTTP headers.
+        cookies: Cookies to send with the request.
+        country: Two-letter country code for geo-located requests.
+        timeout: Request timeout in milliseconds (1000-60000).
+        wait: Milliseconds to wait after page load (0-30000).
+        scrolls: Number of scrolls to perform (0-100).
+        mock: Use mock mode for testing.
     """
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.smartcrawler_initiate(
-            url=url,
-            prompt=prompt,
-            extraction_mode=extraction_mode,
-            depth=depth,
-            max_pages=max_pages,
-            same_domain_only=same_domain_only,
+
+        if extraction_mode not in ("markdown", "html"):
+            raise ValueError("extraction_mode must be 'markdown' or 'html'")
+
+        d = 2 if depth is None else depth
+        mp = 10 if max_pages is None else max_pages
+        if d < 1 or d > 10:
+            raise ValueError("depth must be between 1 and 10")
+        if mp < 1 or mp > 100:
+            raise ValueError("max_pages must be between 1 and 100")
+
+        fc = client._fetch_config(
+            mode=mode, timeout=timeout, wait=wait, headers=headers,
+            cookies=cookies, country=country, scrolls=scrolls, mock=mock,
+        )
+        return client.crawl_start(
+            url,
+            depth=d,
+            max_pages=mp,
+            crawl_format=extraction_mode,
             include_patterns=include_patterns,
             exclude_patterns=exclude_patterns,
+            fetch_config_dict=fc,
         )
     except Exception as e:
         return {"error": str(e)}
@@ -1785,8 +1600,39 @@ def monitor_create(
             ),
         ]
     ] = None,
+    mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
+    headers: Optional[Dict[str, str]] = None,
+    cookies: Optional[Dict[str, str]] = None,
+    country: Optional[str] = None,
+    timeout: Optional[int] = None,
+    wait: Optional[int] = None,
+    scrolls: Optional[int] = None,
+    mock: Optional[bool] = None,
+    llm_model: Optional[str] = None,
+    llm_temperature: Optional[float] = None,
+    llm_max_tokens: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Create a scheduled monitor job (API v2 POST /monitor). Cron uses a 5-field expression."""
+    """
+    Create a scheduled monitor job (API v2 POST /monitor).
+
+    Args:
+        name: Monitor name.
+        url: URL to monitor.
+        prompt: Prompt for AI extraction.
+        cron: 5-field cron expression.
+        output_schema: JSON schema for structured output.
+        mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
+        headers: Custom HTTP headers.
+        cookies: Cookies to send with the request.
+        country: Two-letter country code for geo-located requests.
+        timeout: Request timeout in milliseconds (1000-60000).
+        wait: Milliseconds to wait after page load (0-30000).
+        scrolls: Number of scrolls to perform (0-100).
+        mock: Use mock mode for testing.
+        llm_model: LLM model to use.
+        llm_temperature: Sampling temperature (0.0-2.0).
+        llm_max_tokens: Maximum tokens in the response.
+    """
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
@@ -1802,8 +1648,15 @@ def monitor_create(
                     return {"error": "output_schema must be a JSON object"}
             except json.JSONDecodeError as e:
                 return {"error": f"Invalid JSON for output_schema: {e}"}
+
+        fc = client._fetch_config(
+            mode=mode, timeout=timeout, wait=wait, headers=headers,
+            cookies=cookies, country=country, scrolls=scrolls, mock=mock,
+        )
+        lc = client._llm_config(model=llm_model, temperature=llm_temperature, max_tokens=llm_max_tokens)
         return client.monitor_create(
-            name=name, url=url, prompt=prompt, cron=cron, output_schema=normalized_schema
+            name=name, url=url, prompt=prompt, cron=cron,
+            output_schema=normalized_schema, fetch_config_dict=fc, llm_config_dict=lc,
         )
     except Exception as e:
         return {"error": str(e)}
@@ -1870,34 +1723,45 @@ def scrape(
     website_url: str,
     ctx: Context,
     output_format: Literal["markdown", "html", "screenshot", "branding"] = "markdown",
-    render_heavy_js: Optional[bool] = None,
-    mock: Optional[bool] = None,
-    stealth: Optional[bool] = None,
-    stream: Optional[bool] = None,
     screenshot_full_page: bool = False,
+    mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
+    headers: Optional[Dict[str, str]] = None,
+    cookies: Optional[Dict[str, str]] = None,
+    country: Optional[str] = None,
+    timeout: Optional[int] = None,
+    wait: Optional[int] = None,
+    scrolls: Optional[int] = None,
+    mock: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """
-    Fetch page content via API v2 POST /scrape (markdown, html, screenshot, or branding).
+    Fetch page content (API v2 POST /scrape).
 
-    Maps fetch options into ``fetch_config`` (e.g. ``render_heavy_js`` → ``render_js``).
-    ``stream`` is not supported on v2 and is ignored.
+    Args:
+        website_url: URL to scrape (must include http:// or https://).
+        output_format: Output format — markdown, html, screenshot, or branding.
+        screenshot_full_page: Capture full page screenshot (only for screenshot format).
+        mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
+        headers: Custom HTTP headers.
+        cookies: Cookies to send with the request.
+        country: Two-letter country code for geo-located requests (e.g. 'us').
+        timeout: Request timeout in milliseconds (1000-60000).
+        wait: Milliseconds to wait after page load (0-30000).
+        scrolls: Number of scrolls to perform (0-100).
+        mock: Use mock mode for testing.
     """
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
+        fc = client._fetch_config(
+            mode=mode, timeout=timeout, wait=wait, headers=headers,
+            cookies=cookies, country=country, scrolls=scrolls, mock=mock,
+        )
         return client.scrape(
             website_url=website_url,
-            render_heavy_js=render_heavy_js,
-            mock=mock,
-            stealth=stealth,
-            stream=stream,
             output_format=output_format,
             screenshot_full_page=screenshot_full_page,
+            fetch_config_dict=fc,
         )
-    except httpx.HTTPError as http_err:
-        return {"error": str(http_err)}
-    except ValueError as val_err:
-        return {"error": str(val_err)}
     except Exception as e:
         return {"error": str(e)}
 
