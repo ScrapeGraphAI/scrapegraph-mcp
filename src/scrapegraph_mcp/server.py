@@ -152,22 +152,6 @@ class ScapeGraphClient:
             cfg["mock"] = mock
         return cfg or None
 
-    @staticmethod
-    def _llm_config(
-        *,
-        model: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-    ) -> Optional[Dict[str, Any]]:
-        cfg: Dict[str, Any] = {}
-        if model is not None:
-            cfg["model"] = model
-        if temperature is not None:
-            cfg["temperature"] = temperature
-        if max_tokens is not None:
-            cfg["max_tokens"] = max_tokens
-        return cfg or None
-
     def scrape_v2(
         self,
         website_url: str,
@@ -218,15 +202,12 @@ class ScapeGraphClient:
         website_url: str,
         output_schema: Optional[Dict[str, Any]] = None,
         fetch_config_dict: Optional[Dict[str, Any]] = None,
-        llm_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         body: Dict[str, Any] = {"url": website_url, "prompt": user_prompt}
         if output_schema is not None:
             body["output_schema"] = output_schema
         if fetch_config_dict:
             body["fetch_config"] = fetch_config_dict
-        if llm_config_dict:
-            body["llm_config"] = llm_config_dict
         return self._request("POST", "/extract", json_body=body)
 
     def smartscraper(
@@ -235,24 +216,20 @@ class ScapeGraphClient:
         website_url: str,
         output_schema: Optional[Dict[str, Any]] = None,
         fetch_config_dict: Optional[Dict[str, Any]] = None,
-        llm_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return self.extract(user_prompt, website_url, output_schema, fetch_config_dict, llm_config_dict)
+        return self.extract(user_prompt, website_url, output_schema, fetch_config_dict)
 
     def search_api(
         self,
         query: str,
         num_results: Optional[int] = None,
         output_schema: Optional[Dict[str, Any]] = None,
-        llm_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         n = 5 if num_results is None else num_results
         n = max(3, min(20, n))
         body: Dict[str, Any] = {"query": query, "num_results": n}
         if output_schema is not None:
             body["output_schema"] = output_schema
-        if llm_config_dict:
-            body["llm_config"] = llm_config_dict
         return self._request("POST", "/search", json_body=body)
 
     def searchscraper(
@@ -260,9 +237,8 @@ class ScapeGraphClient:
         user_prompt: str,
         num_results: Optional[int] = None,
         output_schema: Optional[Dict[str, Any]] = None,
-        llm_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return self.search_api(user_prompt, num_results=num_results, output_schema=output_schema, llm_config_dict=llm_config_dict)
+        return self.search_api(user_prompt, num_results=num_results, output_schema=output_schema)
 
     def scrape(
         self,
@@ -345,7 +321,6 @@ class ScapeGraphClient:
         cron: str,
         output_schema: Optional[Dict[str, Any]] = None,
         fetch_config_dict: Optional[Dict[str, Any]] = None,
-        llm_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         body: Dict[str, Any] = {
             "name": name,
@@ -357,8 +332,6 @@ class ScapeGraphClient:
             body["output_schema"] = output_schema
         if fetch_config_dict:
             body["fetch_config"] = fetch_config_dict
-        if llm_config_dict:
-            body["llm_config"] = llm_config_dict
         return self._request("POST", "/monitor", json_body=body)
 
     def monitor_list(self) -> Dict[str, Any]:
@@ -1308,9 +1281,6 @@ def smartscraper(
     wait: Optional[int] = None,
     scrolls: Optional[int] = None,
     mock: Optional[bool] = None,
-    llm_model: Optional[str] = None,
-    llm_temperature: Optional[float] = None,
-    llm_max_tokens: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Extract structured data from a webpage using AI (API v2 POST /extract).
@@ -1328,9 +1298,6 @@ def smartscraper(
         wait: Milliseconds to wait after page load (0-30000).
         scrolls: Number of scrolls to perform (0-100).
         mock: Use mock mode for testing.
-        llm_model: LLM model to use for extraction.
-        llm_temperature: Sampling temperature (0.0-2.0).
-        llm_max_tokens: Maximum tokens in the response.
     """
     try:
         api_key = get_api_key(ctx)
@@ -1358,14 +1325,12 @@ def smartscraper(
             mode=mode, timeout=timeout, wait=wait, headers=headers,
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
         )
-        lc = client._llm_config(model=llm_model, temperature=llm_temperature, max_tokens=llm_max_tokens)
 
         return client.smartscraper(
             user_prompt=user_prompt,
             website_url=website_url,
             output_schema=normalized_schema,
             fetch_config_dict=fc,
-            llm_config_dict=lc,
         )
     except Exception as e:
         return {"error": str(e)}
@@ -1387,9 +1352,6 @@ def searchscraper(
             ),
         ]
     ] = None,
-    llm_model: Optional[str] = None,
-    llm_temperature: Optional[float] = None,
-    llm_max_tokens: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     AI-powered web search with structured data extraction (API v2 POST /search).
@@ -1398,9 +1360,6 @@ def searchscraper(
         user_prompt: Search query or natural language instructions.
         num_results: Number of search results (3-20, default 5).
         output_schema: JSON schema (dict or JSON string) for structured output.
-        llm_model: LLM model to use for extraction.
-        llm_temperature: Sampling temperature (0.0-2.0).
-        llm_max_tokens: Maximum tokens in the response.
     """
     try:
         api_key = get_api_key(ctx)
@@ -1419,8 +1378,7 @@ def searchscraper(
             except json.JSONDecodeError as e:
                 return {"error": f"Invalid JSON for output_schema: {e}"}
 
-        lc = client._llm_config(model=llm_model, temperature=llm_temperature, max_tokens=llm_max_tokens)
-        return client.searchscraper(user_prompt, num_results=num_results, output_schema=normalized_schema, llm_config_dict=lc)
+        return client.searchscraper(user_prompt, num_results=num_results, output_schema=normalized_schema)
     except Exception as e:
         return {"error": str(e)}
 
@@ -1608,9 +1566,6 @@ def monitor_create(
     wait: Optional[int] = None,
     scrolls: Optional[int] = None,
     mock: Optional[bool] = None,
-    llm_model: Optional[str] = None,
-    llm_temperature: Optional[float] = None,
-    llm_max_tokens: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Create a scheduled monitor job (API v2 POST /monitor).
@@ -1629,9 +1584,6 @@ def monitor_create(
         wait: Milliseconds to wait after page load (0-30000).
         scrolls: Number of scrolls to perform (0-100).
         mock: Use mock mode for testing.
-        llm_model: LLM model to use.
-        llm_temperature: Sampling temperature (0.0-2.0).
-        llm_max_tokens: Maximum tokens in the response.
     """
     try:
         api_key = get_api_key(ctx)
@@ -1653,10 +1605,9 @@ def monitor_create(
             mode=mode, timeout=timeout, wait=wait, headers=headers,
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
         )
-        lc = client._llm_config(model=llm_model, temperature=llm_temperature, max_tokens=llm_max_tokens)
         return client.monitor_create(
             name=name, url=url, prompt=prompt, cron=cron,
-            output_schema=normalized_schema, fetch_config_dict=fc, llm_config_dict=lc,
+            output_schema=normalized_schema, fetch_config_dict=fc,
         )
     except Exception as e:
         return {"error": str(e)}
