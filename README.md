@@ -441,7 +441,7 @@ The server enables sophisticated queries across various scraping scenarios:
 - For structured fields per page, run **`smartscraper`** on individual URLs (or **`monitor_create`** on a schedule)
 
 ### Monitors and account
-- **Monitor**: "Run this extract prompt on https://example.com every day at 9am" (`monitor_create` with cron)
+- **Monitor**: "Run this extract prompt on https://example.com every day at 9am" (`monitor_create` with interval)
 - **Credits / history**: `credits`, `sgai_history`
 - **Agentic Scraper**: "Execute a complex workflow: login, navigate to reports, download data, and extract summary statistics"
 

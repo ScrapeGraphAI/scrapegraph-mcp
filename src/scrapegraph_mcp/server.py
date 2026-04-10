@@ -318,7 +318,7 @@ class ScapeGraphClient:
         name: str,
         url: str,
         prompt: str,
-        cron: str,
+        interval: str,
         output_schema: Optional[Dict[str, Any]] = None,
         fetch_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
@@ -326,7 +326,7 @@ class ScapeGraphClient:
             "name": name,
             "url": url,
             "prompt": prompt,
-            "cron": cron,
+            "interval": interval,
         }
         if output_schema is not None:
             body["output_schema"] = output_schema
@@ -1546,7 +1546,7 @@ def monitor_create(
     name: str,
     url: str,
     prompt: str,
-    cron: str,
+    interval: str,
     ctx: Context,
     output_schema: Optional[
         Annotated[
@@ -1574,7 +1574,7 @@ def monitor_create(
         name: Monitor name.
         url: URL to monitor.
         prompt: Prompt for AI extraction.
-        cron: 5-field cron expression.
+        interval: 5-field cron expression for scheduling.
         output_schema: JSON schema for structured output.
         mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
         headers: Custom HTTP headers.
@@ -1606,7 +1606,7 @@ def monitor_create(
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
         )
         return client.monitor_create(
-            name=name, url=url, prompt=prompt, cron=cron,
+            name=name, url=url, prompt=prompt, interval=interval,
             output_schema=normalized_schema, fetch_config_dict=fc,
         )
     except Exception as e:
