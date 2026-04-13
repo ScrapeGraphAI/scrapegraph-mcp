@@ -4,13 +4,22 @@ MCP server for ScapeGraph API integration (API v2).
 
 Aligned with scrapegraph-py v2 ([ScrapeGraphAI/scrapegraph-py#82](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/82)):
 - markdownify: Page content via POST /scrape (markdown by default)
-- smartscraper: Structured extraction via POST /extract (URL input only)
-- searchscraper: Web search via POST /search
-- smartcrawler_initiate / smartcrawler_fetch_results: Async crawl via /crawl (markdown or html only)
+- smartscraper: Structured extraction via POST /extract (url + prompt; schema optional)
+- searchscraper: Web search via POST /search (supports numResults, schema, prompt,
+    locationGeoCode, timeRange, format/mode)
+- smartcrawler_initiate / smartcrawler_fetch_results: Async crawl via /crawl
+    (formats: markdown, html, links, images, summary, branding, screenshot)
 - crawl_stop / crawl_resume: Control running crawl jobs
-- scrape: Format-specific fetch (markdown, html, screenshot, branding)
-- credits / sgai_history: Account usage and request history
-- monitor_*: Scheduled extraction jobs (replaces legacy scheduled jobs)
+- scrape: Format-specific fetch (markdown, html, screenshot, branding, links,
+    images, summary) — emitted as v2 `formats[]` entries
+- generate_schema: JSON schema generation via POST /schema
+- credits / sgai_history: Account usage and request history (page/limit/service)
+- monitor_*: Scheduled extraction jobs. `prompt`+`output_schema` are wrapped into
+    a v2 `{type: "json", ...}` format entry; `webhook_url` is supported.
+
+All v2 request payloads use camelCase keys (fetchConfig, numResults,
+locationGeoCode, maxDepth, maxPages, maxLinksPerPage, allowExternal,
+includePatterns, excludePatterns, contentTypes, webhookUrl, contentType).
 
 Removed on v2 (no API equivalent): sitemap, agentic_scrapper, markdownify_status, smartscraper_status.
 Optional base URL override: SCRAPEGRAPH_API_BASE_URL (default https://api.scrapegraphai.com/api/v2).
@@ -79,6 +88,59 @@ DEFAULT_API_BASE_URL = "https://api.scrapegraphai.com/api/v2"
 
 def _api_base_url() -> str:
     return os.environ.get("SCRAPEGRAPH_API_BASE_URL", DEFAULT_API_BASE_URL).rstrip("/")
+
+
+DEFAULT_SCREENSHOT_FORMAT: Dict[str, Any] = {
+    "type": "screenshot",
+    "fullPage": False,
+    "width": 1440,
+    "height": 900,
+    "quality": 80,
+}
+
+
+def _build_format_entry(
+    format_name: str,
+    *,
+    screenshot_full_page: bool = False,
+) -> Dict[str, Any]:
+    """Build a v2 format entry for scrape/crawl/monitor 'formats' arrays.
+
+    Mirrors scrapegraph-py v2 utils.payloads.build_single_format_entry.
+    """
+    normalized = format_name.strip().lower()
+    if normalized == "markdown":
+        return {"type": "markdown", "mode": "normal"}
+    if normalized == "html":
+        return {"type": "html", "mode": "normal"}
+    if normalized == "screenshot":
+        entry = dict(DEFAULT_SCREENSHOT_FORMAT)
+        entry["fullPage"] = bool(screenshot_full_page)
+        return entry
+    if normalized == "links":
+        return {"type": "links"}
+    if normalized == "images":
+        return {"type": "images"}
+    if normalized == "summary":
+        return {"type": "summary"}
+    if normalized == "branding":
+        return {"type": "branding"}
+    if normalized == "json":
+        raise ValueError(
+            "'json' format requires prompt/schema configuration; use _build_json_format_entry."
+        )
+    raise ValueError(f"Unsupported format: {format_name}")
+
+
+def _build_json_format_entry(
+    prompt: str,
+    schema: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Build a v2 json format entry (used by monitor prompt compatibility)."""
+    entry: Dict[str, Any] = {"type": "json", "prompt": prompt, "mode": "normal"}
+    if schema is not None:
+        entry["schema"] = schema
+    return entry
 
 
 class ScapeGraphClient:
@@ -159,23 +221,18 @@ class ScapeGraphClient:
         *,
         fetch_config_dict: Optional[Dict[str, Any]] = None,
         screenshot_full_page: bool = False,
+        content_type: Optional[str] = None,
     ) -> Dict[str, Any]:
-        fmt = output_format.lower()
-        body: Dict[str, Any] = {"url": website_url}
-        if fmt == "markdown":
-            body["markdown"] = {"mode": "normal"}
-        elif fmt == "html":
-            body["html"] = {"mode": "normal"}
-        elif fmt == "screenshot":
-            body["screenshot"] = {"full_page": screenshot_full_page}
-        elif fmt == "branding":
-            body["branding"] = {}
-        else:
-            raise ValueError(
-                f"Invalid output_format {output_format!r}; use markdown, html, screenshot, or branding"
-            )
+        body: Dict[str, Any] = {
+            "url": website_url,
+            "formats": [
+                _build_format_entry(output_format, screenshot_full_page=screenshot_full_page)
+            ],
+        }
+        if content_type is not None:
+            body["contentType"] = content_type
         if fetch_config_dict:
-            body["fetch_config"] = fetch_config_dict
+            body["fetchConfig"] = fetch_config_dict
         return self._request("POST", "/scrape", json_body=body)
 
     def markdownify(
@@ -199,15 +256,30 @@ class ScapeGraphClient:
     def extract(
         self,
         user_prompt: str,
-        website_url: str,
+        website_url: Optional[str] = None,
         output_schema: Optional[Dict[str, Any]] = None,
         fetch_config_dict: Optional[Dict[str, Any]] = None,
+        *,
+        html: Optional[str] = None,
+        markdown: Optional[str] = None,
+        extract_mode: str = "normal",
+        content_type: Optional[str] = None,
     ) -> Dict[str, Any]:
-        body: Dict[str, Any] = {"url": website_url, "prompt": user_prompt}
+        if not any((website_url, html, markdown)):
+            raise ValueError("extract requires one of url, html, or markdown")
+        body: Dict[str, Any] = {"prompt": user_prompt, "mode": extract_mode}
+        if website_url is not None:
+            body["url"] = website_url
+        if html is not None:
+            body["html"] = html
+        if markdown is not None:
+            body["markdown"] = markdown
         if output_schema is not None:
-            body["output_schema"] = output_schema
+            body["schema"] = output_schema
+        if content_type is not None:
+            body["contentType"] = content_type
         if fetch_config_dict:
-            body["fetch_config"] = fetch_config_dict
+            body["fetchConfig"] = fetch_config_dict
         return self._request("POST", "/extract", json_body=body)
 
     def smartscraper(
@@ -224,12 +296,32 @@ class ScapeGraphClient:
         query: str,
         num_results: Optional[int] = None,
         output_schema: Optional[Dict[str, Any]] = None,
+        *,
+        location_geo_code: Optional[str] = None,
+        prompt: Optional[str] = None,
+        search_format: str = "markdown",
+        search_mode: str = "prune",
+        time_range: Optional[str] = None,
+        fetch_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         n = 5 if num_results is None else num_results
-        n = max(3, min(20, n))
-        body: Dict[str, Any] = {"query": query, "num_results": n}
+        n = max(1, min(20, n))
+        body: Dict[str, Any] = {
+            "query": query,
+            "numResults": n,
+            "format": search_format,
+            "mode": search_mode,
+        }
         if output_schema is not None:
-            body["output_schema"] = output_schema
+            body["schema"] = output_schema
+        if prompt is not None:
+            body["prompt"] = prompt
+        if location_geo_code is not None:
+            body["locationGeoCode"] = location_geo_code
+        if time_range is not None:
+            body["timeRange"] = time_range
+        if fetch_config_dict:
+            body["fetchConfig"] = fetch_config_dict
         return self._request("POST", "/search", json_body=body)
 
     def searchscraper(
@@ -237,8 +329,25 @@ class ScapeGraphClient:
         user_prompt: str,
         num_results: Optional[int] = None,
         output_schema: Optional[Dict[str, Any]] = None,
+        *,
+        location_geo_code: Optional[str] = None,
+        prompt: Optional[str] = None,
+        search_format: str = "markdown",
+        search_mode: str = "prune",
+        time_range: Optional[str] = None,
+        fetch_config_dict: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return self.search_api(user_prompt, num_results=num_results, output_schema=output_schema)
+        return self.search_api(
+            user_prompt,
+            num_results=num_results,
+            output_schema=output_schema,
+            location_geo_code=location_geo_code,
+            prompt=prompt,
+            search_format=search_format,
+            search_mode=search_mode,
+            time_range=time_range,
+            fetch_config_dict=fetch_config_dict,
+        )
 
     def scrape(
         self,
@@ -246,40 +355,67 @@ class ScapeGraphClient:
         output_format: str = "markdown",
         screenshot_full_page: bool = False,
         fetch_config_dict: Optional[Dict[str, Any]] = None,
+        *,
+        content_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         return self.scrape_v2(
             website_url,
             output_format,
             fetch_config_dict=fetch_config_dict,
             screenshot_full_page=screenshot_full_page,
+            content_type=content_type,
         )
+
+    def schema(
+        self,
+        prompt: str,
+        *,
+        existing_schema: Optional[Dict[str, Any]] = None,
+        model: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Generate or augment a JSON Schema from a prompt (POST /schema)."""
+        body: Dict[str, Any] = {"prompt": prompt}
+        if existing_schema is not None:
+            body["existingSchema"] = existing_schema
+        if model is not None:
+            body["model"] = model
+        return self._request("POST", "/schema", json_body=body)
 
     def crawl_start(
         self,
         url: str,
         *,
-        depth: int = 2,
+        depth: Optional[int] = None,
         max_pages: int = 10,
         crawl_format: str = "markdown",
         include_patterns: Optional[List[str]] = None,
         exclude_patterns: Optional[List[str]] = None,
         fetch_config_dict: Optional[Dict[str, Any]] = None,
+        max_links_per_page: int = 10,
+        allow_external: bool = False,
+        content_types: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         cf = crawl_format.lower()
-        if cf not in ("markdown", "html"):
-            raise ValueError("crawl_format must be 'markdown' or 'html'")
+        if cf not in ("markdown", "html", "links", "images", "summary", "branding", "screenshot"):
+            raise ValueError(
+                "crawl_format must be one of: markdown, html, links, images, summary, branding, screenshot"
+            )
         body: Dict[str, Any] = {
             "url": url,
-            "depth": depth,
-            "max_pages": max_pages,
-            "format": cf,
+            "formats": [_build_format_entry(cf)],
+            "maxDepth": 2 if depth is None else depth,
+            "maxPages": max_pages,
+            "maxLinksPerPage": max_links_per_page,
+            "allowExternal": allow_external,
         }
         if include_patterns is not None:
-            body["include_patterns"] = include_patterns
+            body["includePatterns"] = include_patterns
         if exclude_patterns is not None:
-            body["exclude_patterns"] = exclude_patterns
+            body["excludePatterns"] = exclude_patterns
+        if content_types is not None:
+            body["contentTypes"] = content_types
         if fetch_config_dict:
-            body["fetch_config"] = fetch_config_dict
+            body["fetchConfig"] = fetch_config_dict
         return self._request("POST", "/crawl", json_body=body)
 
     def smartcrawler_fetch_results(self, request_id: str) -> Dict[str, Any]:
@@ -296,42 +432,78 @@ class ScapeGraphClient:
 
     def history(
         self,
+        *,
+        service: Optional[str] = None,
+        page: Optional[int] = None,
+        limit: Optional[int] = None,
         endpoint: Optional[str] = None,
         status_filter: Optional[str] = None,
-        limit: Optional[int] = None,
         offset: Optional[int] = None,
     ) -> Dict[str, Any]:
+        """List recent API requests (GET /history).
+
+        v2 supports only page/limit/service. Legacy endpoint/status/offset
+        inputs are translated (offset->page where it divides limit; status is
+        rejected since v2 has no status filter) to preserve backward-compat.
+        """
+        if status_filter is not None:
+            raise ValueError("History status filtering is not supported by SGAI v2")
+        if service and endpoint and service != endpoint:
+            raise ValueError("service and endpoint cannot disagree")
+
+        resolved_limit = limit
+        resolved_page = page
+        if offset is not None:
+            offset_limit = limit or 20
+            if offset_limit <= 0 or offset % offset_limit != 0:
+                raise ValueError("offset must be a non-negative multiple of limit")
+            inferred = (offset // offset_limit) + 1
+            if page is not None and page != inferred:
+                raise ValueError("page and offset point to different result windows")
+            resolved_limit = offset_limit
+            resolved_page = inferred
+
         params = {
-            k: v
-            for k, v in {
-                "endpoint": endpoint,
-                "status": status_filter,
-                "limit": limit,
-                "offset": offset,
-            }.items()
-            if v is not None
+            "page": resolved_page,
+            "limit": resolved_limit,
+            "service": service or endpoint,
         }
+        params = {k: v for k, v in params.items() if v is not None}
         return self._request("GET", "/history", params=params or None)
 
     def monitor_create(
         self,
-        name: str,
+        name: Optional[str],
         url: str,
-        prompt: str,
+        prompt: Optional[str],
         interval: str,
         output_schema: Optional[Dict[str, Any]] = None,
         fetch_config_dict: Optional[Dict[str, Any]] = None,
+        *,
+        formats: Optional[List[Dict[str, Any]]] = None,
+        webhook_url: Optional[str] = None,
     ) -> Dict[str, Any]:
+        # Resolve formats: caller-supplied wins, else build a json entry from prompt/schema.
+        if formats is not None:
+            resolved_formats = list(formats)
+        else:
+            if not prompt:
+                raise ValueError(
+                    "monitor_create requires either `formats` or a `prompt` for json extraction"
+                )
+            resolved_formats = [_build_json_format_entry(prompt=prompt, schema=output_schema)]
+
         body: Dict[str, Any] = {
-            "name": name,
             "url": url,
-            "prompt": prompt,
+            "formats": resolved_formats,
             "interval": interval,
         }
-        if output_schema is not None:
-            body["output_schema"] = output_schema
+        if name is not None:
+            body["name"] = name
+        if webhook_url is not None:
+            body["webhookUrl"] = webhook_url
         if fetch_config_dict:
-            body["fetch_config"] = fetch_config_dict
+            body["fetchConfig"] = fetch_config_dict
         return self._request("POST", "/monitor", json_body=body)
 
     def monitor_list(self) -> Dict[str, Any]:
@@ -436,14 +608,16 @@ See [scrapegraph-py#82](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/82)
 
 ## Core tools
 - **markdownify** — `POST /scrape` (markdown output)
-- **scrape** — `POST /scrape` (markdown, html, screenshot, branding)
-- **smartscraper** — `POST /extract` (URL + prompt; no inline HTML/markdown source on v2)
-- **searchscraper** — `POST /search` (query + num_results 3–20)
-- **smartcrawler_initiate** / **smartcrawler_fetch_results** — `POST/GET /crawl` (markdown or html crawl only; no per-page AI crawl on v2)
+- **scrape** — `POST /scrape` (markdown, html, screenshot, branding, links, images, summary)
+- **smartscraper** — `POST /extract` (url + prompt, optional schema/mode/contentType)
+- **searchscraper** — `POST /search` (query + numResults 1–20; optional schema+prompt, locationGeoCode, timeRange)
+- **smartcrawler_initiate** / **smartcrawler_fetch_results** — `POST/GET /crawl`
+    (formats: markdown, html, links, images, summary, branding, screenshot; maxDepth / maxPages / maxLinksPerPage / allowExternal)
 - **crawl_stop** / **crawl_resume** — control a running job
+- **generate_schema** — `POST /schema`
 - **credits** — `GET /credits`
-- **sgai_history** — `GET /history`
-- **monitor_*** — scheduled jobs (`POST/GET/DELETE /monitor`, pause/resume)
+- **sgai_history** — `GET /history` (page/limit/service)
+- **monitor_*** — scheduled jobs (`POST/GET/DELETE /monitor`, pause/resume, optional webhook_url)
 
 ## Best practices
 1. Use **markdownify** or **scrape** before **smartscraper** when you only need readable text.
@@ -518,7 +692,7 @@ def api_status() -> str:
 - **Auth headers**: `Authorization: Bearer`, `SGAI-APIKEY`, `X-SDK-Version: scrapegraph-mcp@2.0.0`
 
 ## Tools
-markdownify, scrape, smartscraper, searchscraper, smartcrawler_initiate, smartcrawler_fetch_results, crawl_stop, crawl_resume, credits, sgai_history, monitor_create, monitor_list, monitor_get, monitor_pause, monitor_resume, monitor_delete
+markdownify, scrape, smartscraper, searchscraper, smartcrawler_initiate, smartcrawler_fetch_results, crawl_stop, crawl_resume, generate_schema, credits, sgai_history, monitor_create, monitor_list, monitor_get, monitor_pause, monitor_resume, monitor_delete
 
 ## Removed vs legacy MCP
 sitemap, agentic_scrapper, markdownify_status, smartscraper_status — not available on API v2.
@@ -1352,14 +1526,42 @@ def searchscraper(
             ),
         ]
     ] = None,
+    prompt: Optional[str] = None,
+    location_geo_code: Optional[str] = None,
+    time_range: Optional[str] = None,
+    search_format: Literal["markdown", "html"] = "markdown",
+    search_mode: Literal["prune", "normal"] = "prune",
+    mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
+    headers: Optional[Dict[str, str]] = None,
+    cookies: Optional[Dict[str, str]] = None,
+    country: Optional[str] = None,
+    timeout: Optional[int] = None,
+    wait: Optional[int] = None,
+    scrolls: Optional[int] = None,
+    mock: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """
     AI-powered web search with structured data extraction (API v2 POST /search).
 
     Args:
-        user_prompt: Search query or natural language instructions.
-        num_results: Number of search results (3-20, default 5).
+        user_prompt: Search query string (maps to the `query` field in the v2 API).
+        num_results: Number of search results (1-20, default 5).
         output_schema: JSON schema (dict or JSON string) for structured output.
+            When provided, `prompt` is required by the v2 API.
+        prompt: Extraction prompt applied to the search result pages. Required
+            whenever `output_schema` is supplied.
+        location_geo_code: Two-letter country code for geo-targeted search (e.g. 'it', 'us').
+        time_range: Relative recency filter for results (e.g. 'past_day').
+        search_format: Per-result scrape format — 'markdown' (default) or 'html'.
+        search_mode: HTML processing mode — 'prune' (default) or 'normal'.
+        mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
+        headers: Custom HTTP headers.
+        cookies: Cookies to send with the request.
+        country: Two-letter country code for geo-located fetches (fetch_config).
+        timeout: Request timeout in milliseconds (1000-60000).
+        wait: Milliseconds to wait after page load (0-30000).
+        scrolls: Number of scrolls to perform (0-100).
+        mock: Use mock mode for testing.
     """
     try:
         api_key = get_api_key(ctx)
@@ -1378,7 +1580,25 @@ def searchscraper(
             except json.JSONDecodeError as e:
                 return {"error": f"Invalid JSON for output_schema: {e}"}
 
-        return client.searchscraper(user_prompt, num_results=num_results, output_schema=normalized_schema)
+        if normalized_schema is not None and not prompt:
+            return {"error": "`prompt` is required when `output_schema` is provided"}
+
+        fc = client._fetch_config(
+            mode=mode, timeout=timeout, wait=wait, headers=headers,
+            cookies=cookies, country=country, scrolls=scrolls, mock=mock,
+        )
+
+        return client.searchscraper(
+            user_prompt,
+            num_results=num_results,
+            output_schema=normalized_schema,
+            prompt=prompt,
+            location_geo_code=location_geo_code,
+            time_range=time_range,
+            search_format=search_format,
+            search_mode=search_mode,
+            fetch_config_dict=fc,
+        )
     except Exception as e:
         return {"error": str(e)}
 
@@ -1388,9 +1608,14 @@ def searchscraper(
 def smartcrawler_initiate(
     url: str,
     ctx: Context,
-    extraction_mode: str = "markdown",
+    extraction_mode: Literal[
+        "markdown", "html", "links", "images", "summary", "branding", "screenshot"
+    ] = "markdown",
     depth: Optional[int] = None,
     max_pages: Optional[int] = None,
+    max_links_per_page: Optional[int] = None,
+    allow_external: bool = False,
+    content_types: Optional[List[str]] = None,
     include_patterns: Optional[List[str]] = None,
     exclude_patterns: Optional[List[str]] = None,
     mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
@@ -1405,13 +1630,17 @@ def smartcrawler_initiate(
     """
     Start an asynchronous multi-page crawl (API v2 POST /crawl).
 
-    Supports markdown or html output only. Poll smartcrawler_fetch_results with the returned id.
+    Poll smartcrawler_fetch_results with the returned id.
 
     Args:
         url: Starting URL (http/https).
-        extraction_mode: 'markdown' (default) or 'html'.
-        depth: Crawl depth (1-10, default 2).
-        max_pages: Max pages (1-100, default 10).
+        extraction_mode: Per-page output format — markdown (default), html,
+            links, images, summary, branding, or screenshot.
+        depth: Maximum crawl depth (0+). Maps to the v2 `maxDepth` field. Default 2.
+        max_pages: Max pages (1-1000). Default 10.
+        max_links_per_page: Max links to follow per page (>=1). Default 10.
+        allow_external: Whether the crawler can cross domains. Default false.
+        content_types: Allowed response content types for crawled pages.
         include_patterns: URL patterns to include.
         exclude_patterns: URL patterns to exclude.
         mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
@@ -1427,15 +1656,15 @@ def smartcrawler_initiate(
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
 
-        if extraction_mode not in ("markdown", "html"):
-            raise ValueError("extraction_mode must be 'markdown' or 'html'")
-
         d = 2 if depth is None else depth
         mp = 10 if max_pages is None else max_pages
-        if d < 1 or d > 10:
-            raise ValueError("depth must be between 1 and 10")
-        if mp < 1 or mp > 100:
-            raise ValueError("max_pages must be between 1 and 100")
+        mlpp = 10 if max_links_per_page is None else max_links_per_page
+        if d < 0:
+            raise ValueError("depth must be >= 0")
+        if mp < 1 or mp > 1000:
+            raise ValueError("max_pages must be between 1 and 1000")
+        if mlpp < 1:
+            raise ValueError("max_links_per_page must be >= 1")
 
         fc = client._fetch_config(
             mode=mode, timeout=timeout, wait=wait, headers=headers,
@@ -1449,6 +1678,9 @@ def smartcrawler_initiate(
             include_patterns=include_patterns,
             exclude_patterns=exclude_patterns,
             fetch_config_dict=fc,
+            max_links_per_page=mlpp,
+            allow_external=allow_external,
+            content_types=content_types,
         )
     except Exception as e:
         return {"error": str(e)}
@@ -1519,35 +1751,48 @@ def credits(ctx: Context) -> Dict[str, Any]:
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": False})
 def sgai_history(
     ctx: Context,
-    endpoint: Optional[str] = None,
-    status: Optional[str] = None,
+    service: Optional[str] = None,
+    page: Optional[int] = None,
     limit: Optional[int] = None,
+    endpoint: Optional[str] = None,
     offset: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     List recent API requests (API v2 GET /history).
 
+    v2 accepts page/limit/service. The legacy endpoint/offset params are kept
+    as aliases and translated client-side (endpoint -> service, offset -> page
+    when it divides limit). status filtering was removed in v2.
+
     Args:
-        endpoint: Filter by service name (e.g. scrape, extract, search).
-        status: Filter by status string.
-        limit: Max rows (1–100).
-        offset: Skip offset for pagination.
+        service: Filter by service name (e.g. scrape, extract, search).
+        page: One-based page number.
+        limit: Max rows per page (1–100).
+        endpoint: Legacy alias for service.
+        offset: Legacy offset; must be a non-negative multiple of limit.
     """
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.history(endpoint=endpoint, status_filter=status, limit=limit, offset=offset)
+        return client.history(
+            service=service,
+            page=page,
+            limit=limit,
+            endpoint=endpoint,
+            offset=offset,
+        )
     except Exception as e:
         return {"error": str(e)}
 
 
 @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
 def monitor_create(
-    name: str,
     url: str,
     prompt: str,
     interval: str,
     ctx: Context,
+    name: Optional[str] = None,
+    webhook_url: Optional[str] = None,
     output_schema: Optional[
         Annotated[
             Union[str, Dict[str, Any]],
@@ -1570,12 +1815,16 @@ def monitor_create(
     """
     Create a scheduled monitor job (API v2 POST /monitor).
 
+    The v2 API expects a `formats` array. This tool wraps `prompt` (+ optional
+    `output_schema`) into a `{type: "json", ...}` format entry for you.
+
     Args:
-        name: Monitor name.
         url: URL to monitor.
-        prompt: Prompt for AI extraction.
+        prompt: Prompt describing what to extract on each run.
         interval: 5-field cron expression for scheduling.
-        output_schema: JSON schema for structured output.
+        name: Optional monitor name.
+        webhook_url: Optional webhook URL invoked when changes are detected.
+        output_schema: JSON schema (dict or JSON string) for structured output.
         mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
         headers: Custom HTTP headers.
         cookies: Cookies to send with the request.
@@ -1606,9 +1855,61 @@ def monitor_create(
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
         )
         return client.monitor_create(
-            name=name, url=url, prompt=prompt, interval=interval,
-            output_schema=normalized_schema, fetch_config_dict=fc,
+            name=name,
+            url=url,
+            prompt=prompt,
+            interval=interval,
+            output_schema=normalized_schema,
+            fetch_config_dict=fc,
+            webhook_url=webhook_url,
         )
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": False})
+def generate_schema(
+    prompt: str,
+    ctx: Context,
+    existing_schema: Optional[
+        Annotated[
+            Union[str, Dict[str, Any]],
+            Field(
+                default=None,
+                description="Optional existing JSON schema (dict or JSON string) to augment",
+                json_schema_extra={"oneOf": [{"type": "string"}, {"type": "object"}]},
+            ),
+        ]
+    ] = None,
+    model: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Generate or augment a JSON Schema from a natural-language prompt
+    (API v2 POST /schema).
+
+    Args:
+        prompt: Natural-language description of the schema to generate.
+        existing_schema: Optional existing JSON Schema to extend (dict or JSON string).
+        model: Optional LLM model override.
+    """
+    try:
+        api_key = get_api_key(ctx)
+        client = ScapeGraphClient(api_key)
+
+        normalized_schema: Optional[Dict[str, Any]] = None
+        if isinstance(existing_schema, dict):
+            normalized_schema = existing_schema
+        elif isinstance(existing_schema, str):
+            try:
+                parsed = json.loads(existing_schema)
+                if isinstance(parsed, dict):
+                    normalized_schema = parsed
+                else:
+                    return {"error": "existing_schema must be a JSON object"}
+            except json.JSONDecodeError as e:
+                return {"error": f"Invalid JSON for existing_schema: {e}"}
+
+        return client.schema(prompt, existing_schema=normalized_schema, model=model)
     except Exception as e:
         return {"error": str(e)}
 
@@ -1673,8 +1974,11 @@ def monitor_delete(monitor_id: str, ctx: Context) -> Dict[str, Any]:
 def scrape(
     website_url: str,
     ctx: Context,
-    output_format: Literal["markdown", "html", "screenshot", "branding"] = "markdown",
+    output_format: Literal[
+        "markdown", "html", "screenshot", "branding", "links", "images", "summary"
+    ] = "markdown",
     screenshot_full_page: bool = False,
+    content_type: Optional[str] = None,
     mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
     headers: Optional[Dict[str, str]] = None,
     cookies: Optional[Dict[str, str]] = None,
@@ -1689,8 +1993,10 @@ def scrape(
 
     Args:
         website_url: URL to scrape (must include http:// or https://).
-        output_format: Output format — markdown, html, screenshot, or branding.
-        screenshot_full_page: Capture full page screenshot (only for screenshot format).
+        output_format: Output format — markdown, html, screenshot, branding,
+            links, images, or summary.
+        screenshot_full_page: Capture full page screenshot (screenshot format only).
+        content_type: Optional contentType override passed through to the API.
         mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
         headers: Custom HTTP headers.
         cookies: Cookies to send with the request.
@@ -1712,6 +2018,7 @@ def scrape(
             output_format=output_format,
             screenshot_full_page=screenshot_full_page,
             fetch_config_dict=fc,
+            content_type=content_type,
         )
     except Exception as e:
         return {"error": str(e)}
