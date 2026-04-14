@@ -187,6 +187,7 @@ class ScapeGraphClient:
         self,
         *,
         mode: Optional[str] = None,
+        stealth: Optional[bool] = None,
         timeout: Optional[int] = None,
         wait: Optional[int] = None,
         headers: Optional[Dict[str, str]] = None,
@@ -198,6 +199,8 @@ class ScapeGraphClient:
         cfg: Dict[str, Any] = {}
         if mode is not None:
             cfg["mode"] = mode
+        if stealth is not None:
+            cfg["stealth"] = stealth
         if timeout is not None:
             cfg["timeout"] = timeout
         if wait is not None:
@@ -239,6 +242,7 @@ class ScapeGraphClient:
         self,
         website_url: str,
         mode: Optional[str] = None,
+        stealth: Optional[bool] = None,
         headers: Optional[Dict[str, str]] = None,
         cookies: Optional[Dict[str, str]] = None,
         country: Optional[str] = None,
@@ -248,7 +252,7 @@ class ScapeGraphClient:
         mock: Optional[bool] = None,
     ) -> Dict[str, Any]:
         fc = self._fetch_config(
-            mode=mode, timeout=timeout, wait=wait, headers=headers,
+            mode=mode, stealth=stealth, timeout=timeout, wait=wait, headers=headers,
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
         )
         return self.scrape_v2(website_url, "markdown", fetch_config_dict=fc)
@@ -980,13 +984,19 @@ This guide provides comprehensive documentation for every parameter across all S
   - `"auto"`: Automatically selects the best provider chain
   - `"fast"`: Direct HTTP fetch via impit (fastest, no JS)
   - `"js"`: Headless browser rendering for JS-heavy pages
-  - `"direct+stealth"`: Residential proxy with stealth headers (no JS)
-  - `"js+stealth"`: JS rendering combined with stealth/residential proxy
 - **Performance Impact**:
   - `fast`: 2-5 seconds
   - `js`: 15-30 seconds
-  - `direct+stealth`/`js+stealth`: variable, depends on proxy
 - **Cost**: Same regardless of setting
+
+### `stealth`
+**Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
+
+- **Type**: `Optional[bool]`
+- **Default**: `false`
+- **Purpose**: Use residential proxies to bypass bot detection
+- **Cost**: +5 credits per request
+- **Combine with any mode**: e.g. `mode="js"` + `stealth=True` for JS rendering with residential proxy
 
 ### `timeout`
 **Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
@@ -1200,7 +1210,7 @@ Parameters: website_url, user_prompt (if smartscraper)
 ### For Dynamic Content
 ```
 Tool: smartscraper or scrape
-Parameters: mode="js" (or mode="js+stealth" if bot detection is present)
+Parameters: mode="js" (add stealth=True if bot detection is present)
 ```
 
 ### For Multi-Page Content
@@ -1392,7 +1402,8 @@ URL → sitemap (map structure) → smartcrawler (batch process)
 def markdownify(
     website_url: str,
     ctx: Context,
-    mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
+    mode: Optional[Literal["auto", "fast", "js"]] = None,
+    stealth: Optional[bool] = None,
     headers: Optional[Dict[str, str]] = None,
     cookies: Optional[Dict[str, str]] = None,
     country: Optional[str] = None,
@@ -1410,8 +1421,7 @@ def markdownify(
             - auto: Automatically selects the best provider chain (default).
             - fast: Direct HTTP fetch via impit (fastest, no JS).
             - js: Headless browser rendering for JavaScript-heavy pages.
-            - direct+stealth: Residential proxy with stealth headers (no JS).
-            - js+stealth: JS rendering combined with stealth/residential proxy.
+        stealth: Use residential proxies to bypass bot detection (+5 credits).
         headers: Custom HTTP headers to send with the request.
         cookies: Cookies to send with the request.
         country: Two-letter country code for geo-located requests (e.g. 'us').
@@ -1424,8 +1434,9 @@ def markdownify(
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
         return client.markdownify(
-            website_url=website_url, mode=mode, headers=headers, cookies=cookies,
-            country=country, timeout=timeout, wait=wait, scrolls=scrolls, mock=mock,
+            website_url=website_url, mode=mode, stealth=stealth, headers=headers,
+            cookies=cookies, country=country, timeout=timeout, wait=wait,
+            scrolls=scrolls, mock=mock,
         )
     except Exception as e:
         return {"error": str(e)}
@@ -1447,7 +1458,8 @@ def smartscraper(
             ),
         ]
     ] = None,
-    mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
+    mode: Optional[Literal["auto", "fast", "js"]] = None,
+    stealth: Optional[bool] = None,
     headers: Optional[Dict[str, str]] = None,
     cookies: Optional[Dict[str, str]] = None,
     country: Optional[str] = None,
@@ -1464,7 +1476,8 @@ def smartscraper(
         website_url: URL to extract data from (must include http:// or https://).
         output_schema: JSON schema (dict or JSON string) defining the expected output structure.
             If "required" field is missing, it will be automatically added as [].
-        mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
+        mode: Fetch/proxy mode — auto, fast, js.
+        stealth: Use residential proxies to bypass bot detection (+5 credits).
         headers: Custom HTTP headers.
         cookies: Cookies to send with the request.
         country: Two-letter country code for geo-located requests (e.g. 'us').
@@ -1496,7 +1509,7 @@ def smartscraper(
                 normalized_schema["required"] = []
 
         fc = client._fetch_config(
-            mode=mode, timeout=timeout, wait=wait, headers=headers,
+            mode=mode, stealth=stealth, timeout=timeout, wait=wait, headers=headers,
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
         )
 
@@ -1531,7 +1544,8 @@ def searchscraper(
     time_range: Optional[str] = None,
     search_format: Literal["markdown", "html"] = "markdown",
     search_mode: Literal["prune", "normal"] = "prune",
-    mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
+    mode: Optional[Literal["auto", "fast", "js"]] = None,
+    stealth: Optional[bool] = None,
     headers: Optional[Dict[str, str]] = None,
     cookies: Optional[Dict[str, str]] = None,
     country: Optional[str] = None,
@@ -1554,7 +1568,8 @@ def searchscraper(
         time_range: Relative recency filter for results (e.g. 'past_day').
         search_format: Per-result scrape format — 'markdown' (default) or 'html'.
         search_mode: HTML processing mode — 'prune' (default) or 'normal'.
-        mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
+        mode: Fetch/proxy mode — auto, fast, js.
+        stealth: Use residential proxies to bypass bot detection (+5 credits).
         headers: Custom HTTP headers.
         cookies: Cookies to send with the request.
         country: Two-letter country code for geo-located fetches (fetch_config).
@@ -1584,7 +1599,7 @@ def searchscraper(
             return {"error": "`prompt` is required when `output_schema` is provided"}
 
         fc = client._fetch_config(
-            mode=mode, timeout=timeout, wait=wait, headers=headers,
+            mode=mode, stealth=stealth, timeout=timeout, wait=wait, headers=headers,
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
         )
 
@@ -1618,7 +1633,8 @@ def smartcrawler_initiate(
     content_types: Optional[List[str]] = None,
     include_patterns: Optional[List[str]] = None,
     exclude_patterns: Optional[List[str]] = None,
-    mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
+    mode: Optional[Literal["auto", "fast", "js"]] = None,
+    stealth: Optional[bool] = None,
     headers: Optional[Dict[str, str]] = None,
     cookies: Optional[Dict[str, str]] = None,
     country: Optional[str] = None,
@@ -1643,7 +1659,8 @@ def smartcrawler_initiate(
         content_types: Allowed response content types for crawled pages.
         include_patterns: URL patterns to include.
         exclude_patterns: URL patterns to exclude.
-        mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
+        mode: Fetch/proxy mode — auto, fast, js.
+        stealth: Use residential proxies to bypass bot detection (+5 credits).
         headers: Custom HTTP headers.
         cookies: Cookies to send with the request.
         country: Two-letter country code for geo-located requests.
@@ -1667,7 +1684,7 @@ def smartcrawler_initiate(
             raise ValueError("max_links_per_page must be >= 1")
 
         fc = client._fetch_config(
-            mode=mode, timeout=timeout, wait=wait, headers=headers,
+            mode=mode, stealth=stealth, timeout=timeout, wait=wait, headers=headers,
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
         )
         return client.crawl_start(
@@ -1803,7 +1820,8 @@ def monitor_create(
             ),
         ]
     ] = None,
-    mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
+    mode: Optional[Literal["auto", "fast", "js"]] = None,
+    stealth: Optional[bool] = None,
     headers: Optional[Dict[str, str]] = None,
     cookies: Optional[Dict[str, str]] = None,
     country: Optional[str] = None,
@@ -1825,7 +1843,8 @@ def monitor_create(
         name: Optional monitor name.
         webhook_url: Optional webhook URL invoked when changes are detected.
         output_schema: JSON schema (dict or JSON string) for structured output.
-        mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
+        mode: Fetch/proxy mode — auto, fast, js.
+        stealth: Use residential proxies to bypass bot detection (+5 credits).
         headers: Custom HTTP headers.
         cookies: Cookies to send with the request.
         country: Two-letter country code for geo-located requests.
@@ -1851,7 +1870,7 @@ def monitor_create(
                 return {"error": f"Invalid JSON for output_schema: {e}"}
 
         fc = client._fetch_config(
-            mode=mode, timeout=timeout, wait=wait, headers=headers,
+            mode=mode, stealth=stealth, timeout=timeout, wait=wait, headers=headers,
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
         )
         return client.monitor_create(
@@ -1979,7 +1998,8 @@ def scrape(
     ] = "markdown",
     screenshot_full_page: bool = False,
     content_type: Optional[str] = None,
-    mode: Optional[Literal["auto", "fast", "js", "direct+stealth", "js+stealth"]] = None,
+    mode: Optional[Literal["auto", "fast", "js"]] = None,
+    stealth: Optional[bool] = None,
     headers: Optional[Dict[str, str]] = None,
     cookies: Optional[Dict[str, str]] = None,
     country: Optional[str] = None,
@@ -1997,7 +2017,8 @@ def scrape(
             links, images, or summary.
         screenshot_full_page: Capture full page screenshot (screenshot format only).
         content_type: Optional contentType override passed through to the API.
-        mode: Fetch/proxy mode — auto, fast, js, direct+stealth, js+stealth.
+        mode: Fetch/proxy mode — auto, fast, js.
+        stealth: Use residential proxies to bypass bot detection (+5 credits).
         headers: Custom HTTP headers.
         cookies: Cookies to send with the request.
         country: Two-letter country code for geo-located requests (e.g. 'us').
@@ -2010,7 +2031,7 @@ def scrape(
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
         fc = client._fetch_config(
-            mode=mode, timeout=timeout, wait=wait, headers=headers,
+            mode=mode, stealth=stealth, timeout=timeout, wait=wait, headers=headers,
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
         )
         return client.scrape(
