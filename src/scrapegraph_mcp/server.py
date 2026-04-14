@@ -301,7 +301,7 @@ class ScapeGraphClient:
         num_results: Optional[int] = None,
         output_schema: Optional[Dict[str, Any]] = None,
         *,
-        location_geo_code: Optional[str] = None,
+        country: Optional[str] = None,
         prompt: Optional[str] = None,
         search_format: str = "markdown",
         search_mode: str = "prune",
@@ -320,8 +320,8 @@ class ScapeGraphClient:
             body["schema"] = output_schema
         if prompt is not None:
             body["prompt"] = prompt
-        if location_geo_code is not None:
-            body["locationGeoCode"] = location_geo_code
+        if country is not None:
+            body["locationGeoCode"] = country
         if time_range is not None:
             body["timeRange"] = time_range
         if fetch_config_dict:
@@ -334,7 +334,7 @@ class ScapeGraphClient:
         num_results: Optional[int] = None,
         output_schema: Optional[Dict[str, Any]] = None,
         *,
-        location_geo_code: Optional[str] = None,
+        country: Optional[str] = None,
         prompt: Optional[str] = None,
         search_format: str = "markdown",
         search_mode: str = "prune",
@@ -345,7 +345,7 @@ class ScapeGraphClient:
             user_prompt,
             num_results=num_results,
             output_schema=output_schema,
-            location_geo_code=location_geo_code,
+            country=country,
             prompt=prompt,
             search_format=search_format,
             search_mode=search_mode,
@@ -1540,7 +1540,7 @@ def searchscraper(
         ]
     ] = None,
     prompt: Optional[str] = None,
-    location_geo_code: Optional[str] = None,
+    country_search: Optional[str] = None,
     time_range: Optional[str] = None,
     search_format: Literal["markdown", "html"] = "markdown",
     search_mode: Literal["prune", "normal"] = "prune",
@@ -1564,7 +1564,7 @@ def searchscraper(
             When provided, `prompt` is required by the v2 API.
         prompt: Extraction prompt applied to the search result pages. Required
             whenever `output_schema` is supplied.
-        location_geo_code: Two-letter country code for geo-targeted search (e.g. 'it', 'us').
+        country_search: Two-letter country code for geo-targeted search (e.g. 'it', 'us').
         time_range: Relative recency filter for results (e.g. 'past_day').
         search_format: Per-result scrape format — 'markdown' (default) or 'html'.
         search_mode: HTML processing mode — 'prune' (default) or 'normal'.
@@ -1608,7 +1608,7 @@ def searchscraper(
             num_results=num_results,
             output_schema=normalized_schema,
             prompt=prompt,
-            location_geo_code=location_geo_code,
+            country=country_search,
             time_range=time_range,
             search_format=search_format,
             search_mode=search_mode,
