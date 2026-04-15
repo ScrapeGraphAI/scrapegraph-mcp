@@ -20,11 +20,11 @@
 The ScrapeGraph MCP Server is a production-ready [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) server that provides seamless integration between AI assistants (like Claude, Cursor, etc.) and the [ScrapeGraphAI API](https://scrapegraphai.com). This server enables language models to leverage advanced AI-powered web scraping capabilities with enterprise-grade reliability.
 
 **Key Capabilities (API v2):**
-- **Scrape** (`markdownify`, `scrape`) — POST `/api/v2/scrape`
-- **Extract** (`smartscraper`) — POST `/api/v2/extract` (URL-only)
-- **Search** (`searchscraper`) — POST `/api/v2/search`
-- **Crawl** — POST/GET `/api/v2/crawl` (+ stop/resume); markdown/html crawl only
-- **Monitor, credits, history** — `/api/v2/monitor`, `/credits`, `/history`
+- **Scrape** (`markdownify`, `scrape`) — POST `/v2/scrape`
+- **Extract** (`smartscraper`) — POST `/v2/extract` (URL-only)
+- **Search** (`searchscraper`) — POST `/v2/search`
+- **Crawl** — POST/GET `/v2/crawl` (+ stop/resume); markdown/html crawl only
+- **Monitor, credits, history** — `/v2/monitor`, `/credits`, `/history`
 
 **Purpose:**
 - Bridge AI assistants (Claude, Cursor, etc.) with web scraping capabilities
@@ -130,7 +130,7 @@ AI Assistant (Claude/Cursor)
     ↓ (stdio via MCP)
 FastMCP Server (this project)
     ↓ (HTTPS API calls)
-ScrapeGraphAI API (default https://api.scrapegraphai.com/api/v2)
+ScrapeGraphAI API (default https://api.scrapegraphai.com/v2)
     ↓ (web scraping)
 Target Websites
 ```
@@ -140,9 +140,9 @@ Target Websites
 The server follows a simple, single-file architecture:
 
 **`ScapeGraphClient` Class:**
-- HTTP client wrapper for ScrapeGraphAI API v2 ([scrapegraph-py#82](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/82))
-- Base URL: `https://api.scrapegraphai.com/api/v2` (override with env `SCRAPEGRAPH_API_BASE_URL`)
-- Auth: `Authorization: Bearer`, `SGAI-APIKEY`, `X-SDK-Version: scrapegraph-mcp@2.0.0`
+- HTTP client wrapper for ScrapeGraphAI API v2 ([scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84))
+- Base URL: `https://api.scrapegraphai.com/v2` (override with env `SGAI_API_URL`)
+- Auth: `SGAI-APIKEY`, `X-SDK-Version: scrapegraph-mcp@2.0.0` (matches scrapegraph-py v2)
 - v2 methods include `scrape_v2`, `extract`, `search_api`, `crawl_*`, `monitor_*`, `credits`, `history`, plus compatibility wrappers used by MCP tools
 
 **FastMCP Server:**
@@ -391,10 +391,10 @@ If status is "completed":
 
 ### ScrapeGraphAI API
 
-**Base URL:** `https://api.scrapegraphai.com/api/v2` (configurable via `SCRAPEGRAPH_API_BASE_URL`)
+**Base URL:** `https://api.scrapegraphai.com/v2` (configurable via `SGAI_API_URL`)
 
 **Authentication:**
-- Headers: `Authorization: Bearer <key>`, `SGAI-APIKEY: <key>`
+- Headers: `SGAI-APIKEY: <key>` (matches scrapegraph-py v2 wire format)
 - Obtain API key from: [ScrapeGraph Dashboard](https://dashboard.scrapegraphai.com)
 
 **Endpoints used (v2):**

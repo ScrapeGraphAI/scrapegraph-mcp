@@ -2,7 +2,7 @@
 """
 MCP server for ScapeGraph API integration (API v2).
 
-Aligned with scrapegraph-py v2 ([ScrapeGraphAI/scrapegraph-py#82](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/82)):
+Aligned with scrapegraph-py v2 ([ScrapeGraphAI/scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84)):
 - markdownify: Page content via POST /scrape (markdown by default)
 - smartscraper: Structured extraction via POST /extract (url + prompt; schema optional)
 - searchscraper: Web search via POST /search (supports numResults, schema, prompt,
@@ -22,7 +22,11 @@ locationGeoCode, maxDepth, maxPages, maxLinksPerPage, allowExternal,
 includePatterns, excludePatterns, contentTypes, webhookUrl, contentType).
 
 Removed on v2 (no API equivalent): sitemap, agentic_scrapper, markdownify_status, smartscraper_status.
-Optional base URL override: SCRAPEGRAPH_API_BASE_URL (default https://api.scrapegraphai.com/api/v2).
+
+Environment variables (match scrapegraph-py v2):
+- SGAI_API_URL (default https://api.scrapegraphai.com/v2) — base URL override
+- SGAI_TIMEOUT_S (default 120) — request timeout in seconds
+- SCRAPEGRAPH_API_BASE_URL — legacy alias for SGAI_API_URL (still honored)
 
 ## Parameter Validation and Error Handling
 
@@ -83,11 +87,26 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 MCP_SERVER_VERSION = "2.0.0"
-DEFAULT_API_BASE_URL = "https://api.scrapegraphai.com/api/v2"
+# Matches scrapegraph-py v2 (env.py): https://api.scrapegraphai.com/v2
+DEFAULT_API_BASE_URL = "https://api.scrapegraphai.com/v2"
 
 
 def _api_base_url() -> str:
-    return os.environ.get("SCRAPEGRAPH_API_BASE_URL", DEFAULT_API_BASE_URL).rstrip("/")
+    # SGAI_API_URL mirrors scrapegraph-py v2; SCRAPEGRAPH_API_BASE_URL is a legacy alias.
+    return (
+        os.environ.get("SGAI_API_URL")
+        or os.environ.get("SCRAPEGRAPH_API_BASE_URL")
+        or DEFAULT_API_BASE_URL
+    ).rstrip("/")
+
+
+def _api_timeout_s() -> float:
+    # SGAI_TIMEOUT_S mirrors scrapegraph-py v2 (default 120s).
+    val = os.environ.get("SGAI_TIMEOUT_S")
+    try:
+        return float(val) if val else 120.0
+    except ValueError:
+        return 120.0
 
 
 DEFAULT_SCREENSHOT_FORMAT: Dict[str, Any] = {
@@ -144,19 +163,20 @@ def _build_json_format_entry(
 
 
 class ScapeGraphClient:
-    """HTTP client for ScrapeGraphAI API v2 (see scrapegraph-py PR #82)."""
+    """HTTP client for ScrapeGraphAI API v2 (see scrapegraph-py PR #84)."""
 
     def __init__(self, api_key: str, base_url: Optional[str] = None) -> None:
         self.api_key = api_key
         self.base_url = (base_url or _api_base_url()).rstrip("/")
+        # Match scrapegraph-py v2 wire format: single SGAI-APIKEY header. We keep
+        # Content-Type/accept for broker compatibility and X-SDK-Version for telemetry.
         self.headers = {
-            "Authorization": f"Bearer {api_key}",
             "SGAI-APIKEY": api_key,
             "Content-Type": "application/json",
             "accept": "application/json",
             "X-SDK-Version": f"scrapegraph-mcp@{MCP_SERVER_VERSION}",
         }
-        self.client = httpx.Client(timeout=httpx.Timeout(120.0))
+        self.client = httpx.Client(timeout=httpx.Timeout(_api_timeout_s()))
 
     def _parse_response(self, response: httpx.Response) -> Dict[str, Any]:
         if response.status_code >= 400:
@@ -608,7 +628,7 @@ def web_scraping_guide() -> str:
     """
     return """# ScapeGraph Web Scraping Guide (API v2)
 
-See [scrapegraph-py#82](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/82) for the upstream SDK migration.
+See [scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84) for the upstream SDK migration.
 
 ## Core tools
 - **markdownify** — `POST /scrape` (markdown output)
@@ -627,7 +647,7 @@ See [scrapegraph-py#82](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/82)
 1. Use **markdownify** or **scrape** before **smartscraper** when you only need readable text.
 2. Multi-page **AI** extraction: run **smartscraper** per URL, or use **monitor_create** on a schedule.
 3. Poll **smartcrawler_fetch_results** until the crawl finishes.
-4. Override API host with env **SCRAPEGRAPH_API_BASE_URL** if needed (default production v2 base URL).
+4. Override API host with env **SGAI_API_URL** if needed (default `https://api.scrapegraphai.com/v2`).
 """
 
 
@@ -677,7 +697,7 @@ Tool: sgai_history
 limit: 10
 ```
 
-Auth: `SGAI_API_KEY` or MCP `scrapegraphApiKey`. Optional: `SCRAPEGRAPH_API_BASE_URL`.
+Auth: `SGAI_API_KEY` or MCP `scrapegraphApiKey`. Optional: `SGAI_API_URL`, `SGAI_TIMEOUT_S`.
 """
 
 
@@ -691,9 +711,9 @@ def api_status() -> str:
     """
     return """# ScapeGraph API Status (MCP v2)
 
-- **MCP package version**: 2.0.0 (matches [scrapegraph-py#82](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/82) API surface)
-- **Default API base**: `https://api.scrapegraphai.com/api/v2` (override with `SCRAPEGRAPH_API_BASE_URL`)
-- **Auth headers**: `Authorization: Bearer`, `SGAI-APIKEY`, `X-SDK-Version: scrapegraph-mcp@2.0.0`
+- **MCP package version**: 2.0.0 (matches [scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84) API surface)
+- **Default API base**: `https://api.scrapegraphai.com/v2` (override with `SGAI_API_URL`)
+- **Auth headers**: `SGAI-APIKEY`, `X-SDK-Version: scrapegraph-mcp@2.0.0`
 
 ## Tools
 markdownify, scrape, smartscraper, searchscraper, smartcrawler_initiate, smartcrawler_fetch_results, crawl_stop, crawl_resume, generate_schema, credits, sgai_history, monitor_create, monitor_list, monitor_get, monitor_pause, monitor_resume, monitor_delete

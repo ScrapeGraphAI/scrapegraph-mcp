@@ -28,9 +28,15 @@ A production-ready [Model Context Protocol](https://modelcontextprotocol.io/intr
 
 ## API v2
 
-This MCP server targets **ScrapeGraph API v2** (`https://api.scrapegraphai.com/api/v2`), aligned with
-[scrapegraph-py PR #82](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/82). Auth sends both
-`Authorization: Bearer` and `SGAI-APIKEY`. Override the base URL with **`SCRAPEGRAPH_API_BASE_URL`** if needed.
+This MCP server targets **ScrapeGraph API v2** (`https://api.scrapegraphai.com/v2`), aligned 1:1 with
+[scrapegraph-py PR #84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84). Auth uses the
+`SGAI-APIKEY` header. Environment variables mirror the Python SDK:
+
+- **`SGAI_API_URL`** — override the base URL (default `https://api.scrapegraphai.com/v2`)
+- **`SGAI_TIMEOUT_S`** — request timeout in seconds (default `120`)
+- **`SGAI_API_KEY`** — API key (can also be passed via MCP `scrapegraphApiKey` or `X-API-Key` header)
+
+> `SCRAPEGRAPH_API_BASE_URL` is still honored as a legacy alias for `SGAI_API_URL`.
 
 ## Key Features
 

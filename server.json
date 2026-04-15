@@ -24,11 +24,18 @@
           "name": "SGAI_API_KEY"
         },
         {
-          "description": "Override API base URL (default https://api.scrapegraphai.com/api/v2)",
+          "description": "Override API base URL (default https://api.scrapegraphai.com/v2)",
           "isRequired": false,
           "format": "string",
           "isSecret": false,
-          "name": "SCRAPEGRAPH_API_BASE_URL"
+          "name": "SGAI_API_URL"
+        },
+        {
+          "description": "Request timeout in seconds (default 120)",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false,
+          "name": "SGAI_TIMEOUT_S"
         }
       ]
     }
