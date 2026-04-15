@@ -24,9 +24,10 @@ includePatterns, excludePatterns, contentTypes, webhookUrl, contentType).
 Removed on v2 (no API equivalent): sitemap, agentic_scrapper, markdownify_status, smartscraper_status.
 
 Environment variables (match scrapegraph-py v2):
-- SGAI_API_URL (default https://api.scrapegraphai.com/v2) — base URL override
-- SGAI_TIMEOUT_S (default 120) — request timeout in seconds
+- SGAI_API_URL (default https://api.scrapegraphai.com/api/v2) — base URL override
+- SGAI_TIMEOUT (default 120) — request timeout in seconds
 - SCRAPEGRAPH_API_BASE_URL — legacy alias for SGAI_API_URL (still honored)
+- SGAI_TIMEOUT_S — legacy alias for SGAI_TIMEOUT (still honored)
 
 ## Parameter Validation and Error Handling
 
@@ -87,8 +88,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 MCP_SERVER_VERSION = "2.0.0"
-# Matches scrapegraph-py v2 (env.py): https://api.scrapegraphai.com/v2
-DEFAULT_API_BASE_URL = "https://api.scrapegraphai.com/v2"
+# Matches scrapegraph-py v2 (env.py): https://api.scrapegraphai.com/api/v2
+DEFAULT_API_BASE_URL = "https://api.scrapegraphai.com/api/v2"
 
 
 def _api_base_url() -> str:
@@ -101,8 +102,8 @@ def _api_base_url() -> str:
 
 
 def _api_timeout_s() -> float:
-    # SGAI_TIMEOUT_S mirrors scrapegraph-py v2 (default 120s).
-    val = os.environ.get("SGAI_TIMEOUT_S")
+    # SGAI_TIMEOUT mirrors scrapegraph-py v2 (default 120s); SGAI_TIMEOUT_S is a legacy alias.
+    val = os.environ.get("SGAI_TIMEOUT") or os.environ.get("SGAI_TIMEOUT_S")
     try:
         return float(val) if val else 120.0
     except ValueError:
@@ -545,6 +546,20 @@ class ScapeGraphClient:
     def monitor_delete(self, monitor_id: str) -> Dict[str, Any]:
         return self._request("DELETE", f"/monitor/{monitor_id}")
 
+    def monitor_activity(
+        self,
+        monitor_id: str,
+        limit: Optional[int] = None,
+        cursor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """GET /monitor/:id/activity — paginated tick history."""
+        params: Dict[str, Any] = {}
+        if limit is not None:
+            params["limit"] = limit
+        if cursor is not None:
+            params["cursor"] = cursor
+        return self._request("GET", f"/monitor/{monitor_id}/activity", params=params or None)
+
     def close(self) -> None:
         """Close the HTTP client."""
         self.client.close()
@@ -647,7 +662,7 @@ See [scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84)
 1. Use **markdownify** or **scrape** before **smartscraper** when you only need readable text.
 2. Multi-page **AI** extraction: run **smartscraper** per URL, or use **monitor_create** on a schedule.
 3. Poll **smartcrawler_fetch_results** until the crawl finishes.
-4. Override API host with env **SGAI_API_URL** if needed (default `https://api.scrapegraphai.com/v2`).
+4. Override API host with env **SGAI_API_URL** if needed (default `https://api.scrapegraphai.com/api/v2`).
 """
 
 
@@ -697,7 +712,7 @@ Tool: sgai_history
 limit: 10
 ```
 
-Auth: `SGAI_API_KEY` or MCP `scrapegraphApiKey`. Optional: `SGAI_API_URL`, `SGAI_TIMEOUT_S`.
+Auth: `SGAI_API_KEY` or MCP `scrapegraphApiKey`. Optional: `SGAI_API_URL`, `SGAI_TIMEOUT` (legacy: `SGAI_TIMEOUT_S`).
 """
 
 
@@ -712,11 +727,11 @@ def api_status() -> str:
     return """# ScapeGraph API Status (MCP v2)
 
 - **MCP package version**: 2.0.0 (matches [scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84) API surface)
-- **Default API base**: `https://api.scrapegraphai.com/v2` (override with `SGAI_API_URL`)
+- **Default API base**: `https://api.scrapegraphai.com/api/v2` (override with `SGAI_API_URL`)
 - **Auth headers**: `SGAI-APIKEY`, `X-SDK-Version: scrapegraph-mcp@2.0.0`
 
 ## Tools
-markdownify, scrape, smartscraper, searchscraper, smartcrawler_initiate, smartcrawler_fetch_results, crawl_stop, crawl_resume, generate_schema, credits, sgai_history, monitor_create, monitor_list, monitor_get, monitor_pause, monitor_resume, monitor_delete
+markdownify, scrape, smartscraper, searchscraper, smartcrawler_initiate, smartcrawler_fetch_results, crawl_stop, crawl_resume, generate_schema, credits, sgai_history, monitor_create, monitor_list, monitor_get, monitor_pause, monitor_resume, monitor_delete, monitor_activity
 
 ## Removed vs legacy MCP
 sitemap, agentic_scrapper, markdownify_status, smartscraper_status — not available on API v2.
@@ -2004,6 +2019,32 @@ def monitor_delete(monitor_id: str, ctx: Context) -> Dict[str, Any]:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
         return client.monitor_delete(monitor_id)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
+def monitor_activity(
+    monitor_id: str,
+    ctx: Context,
+    limit: Optional[int] = None,
+    cursor: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Poll per-run tick history for a monitor (API v2 GET /monitor/:id/activity).
+
+    Returns the ticks produced on each scheduled run (`id`, `createdAt`, `status`,
+    `changed`, `elapsedMs`, `diffs`) plus `nextCursor` when more results are
+    available. Mirrors `sgai.monitor.activity()` in scrapegraph-py v2.
+
+    Args:
+        monitor_id: ID of the monitor (cronId returned by monitor_create).
+        limit: Page size, 1–100. Default 20 (server-side).
+        cursor: Opaque pagination cursor returned as `nextCursor` by a prior call.
+    """
+    try:
+        api_key = get_api_key(ctx)
+        client = ScapeGraphClient(api_key)
+        return client.monitor_activity(monitor_id, limit=limit, cursor=cursor)
     except Exception as e:
         return {"error": str(e)}
 

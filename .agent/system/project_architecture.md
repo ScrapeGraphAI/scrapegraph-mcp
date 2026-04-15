@@ -130,7 +130,7 @@ AI Assistant (Claude/Cursor)
     ↓ (stdio via MCP)
 FastMCP Server (this project)
     ↓ (HTTPS API calls)
-ScrapeGraphAI API (default https://api.scrapegraphai.com/v2)
+ScrapeGraphAI API (default https://api.scrapegraphai.com/api/v2)
     ↓ (web scraping)
 Target Websites
 ```
@@ -141,7 +141,7 @@ The server follows a simple, single-file architecture:
 
 **`ScapeGraphClient` Class:**
 - HTTP client wrapper for ScrapeGraphAI API v2 ([scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84))
-- Base URL: `https://api.scrapegraphai.com/v2` (override with env `SGAI_API_URL`)
+- Base URL: `https://api.scrapegraphai.com/api/v2` (override with env `SGAI_API_URL`)
 - Auth: `SGAI-APIKEY`, `X-SDK-Version: scrapegraph-mcp@2.0.0` (matches scrapegraph-py v2)
 - v2 methods include `scrape_v2`, `extract`, `search_api`, `crawl_*`, `monitor_*`, `credits`, `history`, plus compatibility wrappers used by MCP tools
 
@@ -188,7 +188,7 @@ The server follows a simple, single-file architecture:
 
 The server exposes many `@mcp.tool()` handlers (see repository `README.md` for the full table). The detailed subsections below still use **v1-style endpoint names** in several places; treat them as illustrative and prefer the v2 mapping in **API Integration**.
 
-**v2 tool names:** `markdownify`, `scrape`, `smartscraper`, `searchscraper`, `smartcrawler_initiate`, `smartcrawler_fetch_results`, `crawl_stop`, `crawl_resume`, `credits`, `sgai_history`, `monitor_create`, `monitor_list`, `monitor_get`, `monitor_pause`, `monitor_resume`, `monitor_delete`.
+**v2 tool names:** `markdownify`, `scrape`, `smartscraper`, `searchscraper`, `smartcrawler_initiate`, `smartcrawler_fetch_results`, `crawl_stop`, `crawl_resume`, `credits`, `sgai_history`, `monitor_create`, `monitor_list`, `monitor_get`, `monitor_pause`, `monitor_resume`, `monitor_delete`, `monitor_activity`.
 
 ### 1. `markdownify(website_url: str)`
 
@@ -391,7 +391,7 @@ If status is "completed":
 
 ### ScrapeGraphAI API
 
-**Base URL:** `https://api.scrapegraphai.com/v2` (configurable via `SGAI_API_URL`)
+**Base URL:** `https://api.scrapegraphai.com/api/v2` (configurable via `SGAI_API_URL`)
 
 **Authentication:**
 - Headers: `SGAI-APIKEY: <key>` (matches scrapegraph-py v2 wire format)
@@ -414,6 +414,7 @@ If status is "completed":
 | `/monitor/{id}` | GET, DELETE | `monitor_get`, `monitor_delete` |
 | `/monitor/{id}/pause` | POST | `monitor_pause` |
 | `/monitor/{id}/resume` | POST | `monitor_resume` |
+| `/monitor/{id}/activity` | GET | `monitor_activity` |
 
 **Request Format:**
 ```json

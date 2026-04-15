@@ -379,7 +379,8 @@ npx @modelcontextprotocol/inspector scrapegraph-mcp
 ## 📅 Changelog
 
 ### April 2026
-- ✅ Migrated MCP client and tools to **API v2** ([scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84)): base `https://api.scrapegraphai.com/v2`, `SGAI-APIKEY` header (matches SDK wire format), new crawl/monitor/credits/history tools; removed sitemap, agentic_scrapper, status polling tools. Env vars aligned with SDK: `SGAI_API_URL`, `SGAI_TIMEOUT_S`.
+- ✅ Migrated MCP client and tools to **API v2** ([scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84)): base `https://api.scrapegraphai.com/api/v2`, `SGAI-APIKEY` header (matches SDK wire format), new crawl/monitor/credits/history tools; removed sitemap, agentic_scrapper, status polling tools. Env vars aligned with SDK: `SGAI_API_URL`, `SGAI_TIMEOUT` (legacy alias `SGAI_TIMEOUT_S` still honored).
+- ✅ Added `monitor_activity` tool for paginated tick history (GET /monitor/:id/activity), mirroring `sgai.monitor.activity()` in scrapegraph-py v2.
 
 ### January 2026
 - ✅ Added `time_range` parameter to SearchScraper for filtering results by recency (v1-era; **ignored on API v2**)
