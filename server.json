@@ -24,7 +24,7 @@
           "name": "SGAI_API_KEY"
         },
         {
-          "description": "Override API base URL (default https://v2-api.scrapegraphai.com/api/v2)",
+          "description": "Override API base URL (default https://v2-api.scrapegraphai.com/api)",
           "isRequired": false,
           "format": "string",
           "isSecret": false,
