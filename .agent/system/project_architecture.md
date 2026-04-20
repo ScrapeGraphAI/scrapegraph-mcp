@@ -188,7 +188,7 @@ The server follows a simple, single-file architecture:
 
 The server exposes many `@mcp.tool()` handlers (see repository `README.md` for the full table). The detailed subsections below still use **v1-style endpoint names** in several places; treat them as illustrative and prefer the v2 mapping in **API Integration**.
 
-**v2 tool names:** `markdownify`, `scrape`, `smartscraper`, `searchscraper`, `smartcrawler_initiate`, `smartcrawler_fetch_results`, `crawl_stop`, `crawl_resume`, `credits`, `sgai_history`, `monitor_create`, `monitor_list`, `monitor_get`, `monitor_pause`, `monitor_resume`, `monitor_delete`.
+**v2 tool names:** `markdownify`, `scrape`, `smartscraper`, `searchscraper`, `smartcrawler_initiate`, `smartcrawler_fetch_results`, `crawl_stop`, `crawl_resume`, `credits`, `sgai_history`, `monitor_create`, `monitor_list`, `monitor_get`, `monitor_pause`, `monitor_resume`, `monitor_delete`, `monitor_activity`.
 
 ### 1. `markdownify(website_url: str)`
 
@@ -414,6 +414,7 @@ If status is "completed":
 | `/monitor/{id}` | GET, DELETE | `monitor_get`, `monitor_delete` |
 | `/monitor/{id}/pause` | POST | `monitor_pause` |
 | `/monitor/{id}/resume` | POST | `monitor_resume` |
+| `/monitor/{id}/activity` | GET | `monitor_activity` |
 
 **Request Format:**
 ```json

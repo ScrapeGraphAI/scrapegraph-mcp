@@ -35,7 +35,7 @@
           "isRequired": false,
           "format": "string",
           "isSecret": false,
-          "name": "SGAI_TIMEOUT_S"
+          "name": "SGAI_TIMEOUT"
         }
       ]
     }

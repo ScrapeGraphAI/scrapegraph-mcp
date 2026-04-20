@@ -33,17 +33,17 @@ This MCP server targets **ScrapeGraph API v2** (`https://v2-api.scrapegraphai.co
 `SGAI-APIKEY` header. Environment variables mirror the Python SDK:
 
 - **`SGAI_API_URL`** — override the base URL (default `https://v2-api.scrapegraphai.com/api`)
-- **`SGAI_TIMEOUT_S`** — request timeout in seconds (default `120`)
+- **`SGAI_TIMEOUT`** — request timeout in seconds (default `120`)
 - **`SGAI_API_KEY`** — API key (can also be passed via MCP `scrapegraphApiKey` or `X-API-Key` header)
 
-> `SCRAPEGRAPH_API_BASE_URL` is still honored as a legacy alias for `SGAI_API_URL`.
+> Legacy aliases (still honored): `SCRAPEGRAPH_API_BASE_URL` for `SGAI_API_URL`, `SGAI_TIMEOUT_S` for `SGAI_TIMEOUT`.
 
 ## Key Features
 
 - **Scrape & extract**: `markdownify` / `scrape` (POST /scrape), `smartscraper` (POST /extract, URL only)
 - **Search**: `searchscraper` (POST /search; `num_results` clamped 3–20)
 - **Crawl**: Async multi-page crawl in **markdown** or **html** only; `crawl_stop` / `crawl_resume`
-- **Monitors**: Scheduled jobs via `monitor_create`, `monitor_list`, `monitor_get`, pause/resume/delete
+- **Monitors**: Scheduled jobs via `monitor_create`, `monitor_list`, `monitor_get`, pause/resume/delete, `monitor_activity` (paginated tick history)
 - **Account**: `credits`, `sgai_history`
 - **Easy integration**: Claude Desktop, Cursor, Smithery, HTTP transport
 - **Developer docs**: `.agent/` folder
@@ -83,6 +83,7 @@ That's it! The server is now available to your AI assistant.
 | `credits` | GET /credits |
 | `sgai_history` | GET /history |
 | `monitor_create`, `monitor_list`, `monitor_get`, `monitor_pause`, `monitor_resume`, `monitor_delete` | /monitor API |
+| `monitor_activity` | GET /monitor/:id/activity (paginated tick history: `id`, `createdAt`, `status`, `changed`, `elapsedMs`, `diffs`) |
 
 **Removed vs older MCP releases:** `sitemap`, `agentic_scrapper`, `markdownify_status`, `smartscraper_status` (no v2 endpoints).
 
