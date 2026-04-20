@@ -86,10 +86,10 @@ The **Model Context Protocol** (MCP) is an open standard that defines how AI ass
 └────────────┬────────────────────┘
              │ HTTPS API requests
              ▼
-┌─────────────────────────────────┐
-│   ScrapeGraphAI API             │
-│   https://api.scrapegraphai.com │
-└─────────────────────────────────┘
+┌───────────────────────────────────┐
+│   ScrapeGraphAI API               │
+│   v2-api.scrapegraphai.com/api    │
+└───────────────────────────────────┘
 ```
 
 ### FastMCP Framework
