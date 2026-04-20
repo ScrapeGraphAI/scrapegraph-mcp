@@ -24,7 +24,7 @@ includePatterns, excludePatterns, contentTypes, webhookUrl, contentType).
 Removed on v2 (no API equivalent): sitemap, agentic_scrapper, markdownify_status, smartscraper_status.
 
 Environment variables (match scrapegraph-py v2):
-- SGAI_API_URL (default https://api.scrapegraphai.com/v2) — base URL override
+- SGAI_API_URL (default https://v2-api.scrapegraphai.com/api/v2) — base URL override
 - SGAI_TIMEOUT_S (default 120) — request timeout in seconds
 - SCRAPEGRAPH_API_BASE_URL — legacy alias for SGAI_API_URL (still honored)
 
@@ -87,8 +87,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 MCP_SERVER_VERSION = "2.0.0"
-# Matches scrapegraph-py v2 (env.py): https://api.scrapegraphai.com/v2
-DEFAULT_API_BASE_URL = "https://api.scrapegraphai.com/v2"
+# Matches scrapegraph-py v2 (env.py): https://v2-api.scrapegraphai.com/api/v2
+DEFAULT_API_BASE_URL = "https://v2-api.scrapegraphai.com/api/v2"
 
 
 def _api_base_url() -> str:
@@ -647,7 +647,7 @@ See [scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84)
 1. Use **markdownify** or **scrape** before **smartscraper** when you only need readable text.
 2. Multi-page **AI** extraction: run **smartscraper** per URL, or use **monitor_create** on a schedule.
 3. Poll **smartcrawler_fetch_results** until the crawl finishes.
-4. Override API host with env **SGAI_API_URL** if needed (default `https://api.scrapegraphai.com/v2`).
+4. Override API host with env **SGAI_API_URL** if needed (default `https://v2-api.scrapegraphai.com/api/v2`).
 """
 
 
@@ -712,7 +712,7 @@ def api_status() -> str:
     return """# ScapeGraph API Status (MCP v2)
 
 - **MCP package version**: 2.0.0 (matches [scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84) API surface)
-- **Default API base**: `https://api.scrapegraphai.com/v2` (override with `SGAI_API_URL`)
+- **Default API base**: `https://v2-api.scrapegraphai.com/api/v2` (override with `SGAI_API_URL`)
 - **Auth headers**: `SGAI-APIKEY`, `X-SDK-Version: scrapegraph-mcp@2.0.0`
 
 ## Tools

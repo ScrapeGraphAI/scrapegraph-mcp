@@ -130,7 +130,7 @@ AI Assistant (Claude/Cursor)
     ↓ (stdio via MCP)
 FastMCP Server (this project)
     ↓ (HTTPS API calls)
-ScrapeGraphAI API (default https://api.scrapegraphai.com/v2)
+ScrapeGraphAI API (default https://v2-api.scrapegraphai.com/api/v2)
     ↓ (web scraping)
 Target Websites
 ```
@@ -141,7 +141,7 @@ The server follows a simple, single-file architecture:
 
 **`ScapeGraphClient` Class:**
 - HTTP client wrapper for ScrapeGraphAI API v2 ([scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84))
-- Base URL: `https://api.scrapegraphai.com/v2` (override with env `SGAI_API_URL`)
+- Base URL: `https://v2-api.scrapegraphai.com/api/v2` (override with env `SGAI_API_URL`)
 - Auth: `SGAI-APIKEY`, `X-SDK-Version: scrapegraph-mcp@2.0.0` (matches scrapegraph-py v2)
 - v2 methods include `scrape_v2`, `extract`, `search_api`, `crawl_*`, `monitor_*`, `credits`, `history`, plus compatibility wrappers used by MCP tools
 
@@ -391,7 +391,7 @@ If status is "completed":
 
 ### ScrapeGraphAI API
 
-**Base URL:** `https://api.scrapegraphai.com/v2` (configurable via `SGAI_API_URL`)
+**Base URL:** `https://v2-api.scrapegraphai.com/api/v2` (configurable via `SGAI_API_URL`)
 
 **Authentication:**
 - Headers: `SGAI-APIKEY: <key>` (matches scrapegraph-py v2 wire format)
