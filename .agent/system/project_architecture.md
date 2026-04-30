@@ -1,7 +1,7 @@
 # ScrapeGraph MCP Server - Project Architecture
 
 **Last Updated:** April 2026
-**Version:** 2.0.0
+**Version:** 3.0.0
 
 ## Table of Contents
 - [System Overview](#system-overview)
@@ -20,9 +20,9 @@
 The ScrapeGraph MCP Server is a production-ready [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) server that provides seamless integration between AI assistants (like Claude, Cursor, etc.) and the [ScrapeGraphAI API](https://scrapegraphai.com). This server enables language models to leverage advanced AI-powered web scraping capabilities with enterprise-grade reliability.
 
 **Key Capabilities (API v2):**
-- **Scrape** (`markdownify`, `scrape`) — POST `/v2/scrape`
-- **Extract** (`smartscraper`) — POST `/v2/extract` (URL-only)
-- **Search** (`searchscraper`) — POST `/v2/search`
+- **Scrape** (`scrape`, `scrape`) — POST `/v2/scrape`
+- **Extract** (`extract`) — POST `/v2/extract` (URL-only)
+- **Search** (`search`) — POST `/v2/search`
 - **Crawl** — POST/GET `/v2/crawl` (+ stop/resume); markdown/html crawl only
 - **Monitor, credits, history** — `/v2/monitor`, `/credits`, `/history`
 
@@ -188,9 +188,9 @@ The server follows a simple, single-file architecture:
 
 The server exposes many `@mcp.tool()` handlers (see repository `README.md` for the full table). The detailed subsections below still use **v1-style endpoint names** in several places; treat them as illustrative and prefer the v2 mapping in **API Integration**.
 
-**v2 tool names:** `markdownify`, `scrape`, `smartscraper`, `searchscraper`, `smartcrawler_initiate`, `smartcrawler_fetch_results`, `crawl_stop`, `crawl_resume`, `credits`, `sgai_history`, `monitor_create`, `monitor_list`, `monitor_get`, `monitor_pause`, `monitor_resume`, `monitor_delete`, `monitor_activity`.
+**v2 tool names:** `scrape`, `scrape`, `extract`, `search`, `crawl_start`, `crawl_get_status`, `crawl_stop`, `crawl_resume`, `credits`, `history`, `monitor_create`, `monitor_list`, `monitor_get`, `monitor_pause`, `monitor_resume`, `monitor_delete`, `monitor_activity`.
 
-### 1. `markdownify(website_url: str)`
+### 1. `scrape(website_url: str)`
 
 **Purpose:** Convert a webpage into clean, formatted markdown
 
@@ -214,16 +214,16 @@ The server exposes many `@mcp.tool()` handlers (see repository `README.md` for t
 **Example Usage (from AI):**
 ```
 "Convert https://scrapegraphai.com to markdown"
-→ AI calls: markdownify("https://scrapegraphai.com")
+→ AI calls: scrape("https://scrapegraphai.com")
 ```
 
-**API Endpoint:** `POST /v1/markdownify`
+**API Endpoint:** `POST /v1/scrape`
 
 **Credits:** 2 credits per request
 
 ---
 
-### 2. `smartscraper(user_prompt: str, website_url: str, number_of_scrolls: int = None, markdown_only: bool = None)`
+### 2. `extract(user_prompt: str, website_url: str, number_of_scrolls: int = None, markdown_only: bool = None)`
 
 **Purpose:** Extract structured data from a webpage using AI
 
@@ -246,19 +246,19 @@ The server exposes many `@mcp.tool()` handlers (see repository `README.md` for t
 **Example Usage:**
 ```
 "Extract all product names and prices from https://example.com/products"
-→ AI calls: smartscraper(
+→ AI calls: extract(
     user_prompt="Extract product names and prices",
     website_url="https://example.com/products"
 )
 ```
 
-**API Endpoint:** `POST /v1/smartscraper`
+**API Endpoint:** `POST /v1/extract`
 
 **Credits:** 10 credits (base) + 1 credit per scroll + additional charges
 
 ---
 
-### 3. `searchscraper(user_prompt: str, num_results: int = None, number_of_scrolls: int = None, time_range: str = None)`
+### 3. `search(user_prompt: str, num_results: int = None, number_of_scrolls: int = None, time_range: str = None)`
 
 **Purpose:** Perform AI-powered web searches with structured results
 
@@ -284,20 +284,20 @@ The server exposes many `@mcp.tool()` handlers (see repository `README.md` for t
 **Example Usage:**
 ```
 "Research the latest AI developments in 2025"
-→ AI calls: searchscraper(
+→ AI calls: search(
     user_prompt="Latest AI developments in 2025",
     num_results=5,
     time_range="past_week"
 )
 ```
 
-**API Endpoint:** `POST /v1/searchscraper`
+**API Endpoint:** `POST /v1/search`
 
 **Credits:** Variable (3-20 websites × 10 credits per website)
 
 ---
 
-### 4. `smartcrawler_initiate(url: str, prompt: str = None, extraction_mode: str = "ai", depth: int = None, max_pages: int = None, same_domain_only: bool = None)`
+### 4. `crawl_start(url: str, prompt: str = None, extraction_mode: str = "ai", depth: int = None, max_pages: int = None, same_domain_only: bool = None)`
 
 **Purpose:** Initiate intelligent multi-page web crawling (asynchronous)
 
@@ -320,7 +320,7 @@ The server exposes many `@mcp.tool()` handlers (see repository `README.md` for t
 **Example Usage:**
 ```
 "Crawl https://docs.python.org and extract all function signatures"
-→ AI calls: smartcrawler_initiate(
+→ AI calls: crawl_start(
     url="https://docs.python.org",
     prompt="Extract function signatures and descriptions",
     extraction_mode="ai",
@@ -333,16 +333,16 @@ The server exposes many `@mcp.tool()` handlers (see repository `README.md` for t
 
 **Credits:** 100 credits (base) + 10 credits per page (AI mode) or 2 credits per page (markdown mode)
 
-**Note:** This is an asynchronous operation. Use `smartcrawler_fetch_results()` to retrieve results.
+**Note:** This is an asynchronous operation. Use `crawl_get_status()` to retrieve results.
 
 ---
 
-### 5. `smartcrawler_fetch_results(request_id: str)`
+### 5. `crawl_get_status(request_id: str)`
 
 **Purpose:** Fetch the results of a SmartCrawler operation
 
 **Parameters:**
-- `request_id` (str) - The request ID returned by `smartcrawler_initiate()`
+- `request_id` (str) - The request ID returned by `crawl_start()`
 
 **Returns (while processing):**
 ```json
@@ -369,7 +369,7 @@ The server exposes many `@mcp.tool()` handlers (see repository `README.md` for t
 **Example Usage:**
 ```
 AI: "Check the status of crawl request abc-123"
-→ AI calls: smartcrawler_fetch_results("abc-123")
+→ AI calls: crawl_get_status("abc-123")
 
 If status is "processing":
 → AI: "Still processing, 15/50 pages completed"
@@ -401,15 +401,15 @@ If status is "completed":
 
 | Endpoint | Method | MCP tools (typical) |
 |----------|--------|---------------------|
-| `/scrape` | POST | `markdownify`, `scrape` |
-| `/extract` | POST | `smartscraper` |
-| `/search` | POST | `searchscraper` |
-| `/crawl` | POST | `smartcrawler_initiate` |
-| `/crawl/{id}` | GET | `smartcrawler_fetch_results` |
+| `/scrape` | POST | `scrape`, `scrape` |
+| `/extract` | POST | `extract` |
+| `/search` | POST | `search` |
+| `/crawl` | POST | `crawl_start` |
+| `/crawl/{id}` | GET | `crawl_get_status` |
 | `/crawl/{id}/stop` | POST | `crawl_stop` |
 | `/crawl/{id}/resume` | POST | `crawl_resume` |
 | `/credits` | GET | `credits` |
-| `/history` | GET | `sgai_history` |
+| `/history` | GET | `history` |
 | `/monitor` | POST, GET | `monitor_create`, `monitor_list` |
 | `/monitor/{id}` | GET, DELETE | `monitor_get`, `monitor_delete` |
 | `/monitor/{id}/pause` | POST | `monitor_pause` |
@@ -596,8 +596,8 @@ scrapegraph-mcp
 ### October 2025
 
 **SmartCrawler Integration (Latest):**
-- Added `smartcrawler_initiate()` tool for multi-page crawling
-- Added `smartcrawler_fetch_results()` tool for async result retrieval
+- Added `crawl_start()` tool for multi-page crawling
+- Added `crawl_get_status()` tool for async result retrieval
 - Support for AI extraction mode (10 credits/page) and markdown mode (2 credits/page)
 - Configurable depth, max_pages, and same_domain_only parameters
 - Enhanced error handling for extraction mode validation
@@ -679,19 +679,19 @@ mypy src/
 
 ### Manual Testing
 
-**Test markdownify:**
+**Test scrape:**
 ```bash
-echo '{"method":"tools/call","params":{"name":"markdownify","arguments":{"website_url":"https://scrapegraphai.com"}}}' | scrapegraph-mcp
+echo '{"method":"tools/call","params":{"name":"scrape","arguments":{"website_url":"https://scrapegraphai.com"}}}' | scrapegraph-mcp
 ```
 
-**Test smartscraper:**
+**Test extract:**
 ```bash
-echo '{"method":"tools/call","params":{"name":"smartscraper","arguments":{"user_prompt":"Extract main features","website_url":"https://scrapegraphai.com"}}}' | scrapegraph-mcp
+echo '{"method":"tools/call","params":{"name":"extract","arguments":{"user_prompt":"Extract main features","website_url":"https://scrapegraphai.com"}}}' | scrapegraph-mcp
 ```
 
-**Test searchscraper:**
+**Test search:**
 ```bash
-echo '{"method":"tools/call","params":{"name":"searchscraper","arguments":{"user_prompt":"Latest AI news"}}}' | scrapegraph-mcp
+echo '{"method":"tools/call","params":{"name":"search","arguments":{"user_prompt":"Latest AI news"}}}' | scrapegraph-mcp
 ```
 
 ### Integration Testing
@@ -735,7 +735,7 @@ echo '{"method":"tools/call","params":{"name":"searchscraper","arguments":{"user
 
 **Issue: SmartCrawler not returning results**
 - **Cause:** Still processing (async operation)
-- **Solution:** Keep polling `smartcrawler_fetch_results()` until `status == "completed"`
+- **Solution:** Keep polling `crawl_get_status()` until `status == "completed"`
 
 ---
 

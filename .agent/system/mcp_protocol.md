@@ -41,7 +41,7 @@ The **Model Context Protocol** (MCP) is an open standard that defines how AI ass
 - Functions exposed by the server
 - Have typed parameters and return values
 - Automatically discovered by AI assistants
-- **Examples:** `markdownify()`, `smartscraper()`
+- **Examples:** `scrape()`, `extract()`
 
 **5. Resources**
 - Data exposed by the server (optional)
@@ -104,7 +104,7 @@ mcp = FastMCP("ScapeGraph API MCP Server")
 
 # Define tools with decorators
 @mcp.tool()
-def markdownify(website_url: str) -> Dict[str, Any]:
+def scrape(website_url: str) -> Dict[str, Any]:
     """Convert a webpage to markdown."""
     # Implementation...
     return {"result": "..."}
@@ -135,7 +135,7 @@ mcp.run(transport="stdio")
 **Example Flow:**
 ```
 Client → Server (stdin):
-{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "markdownify", "arguments": {"website_url": "https://example.com"}}, "id": 1}
+{"jsonrpc": "2.0", "method": "tools/call", "params": {"name": "scrape", "arguments": {"website_url": "https://example.com"}}, "id": 1}
 
 Server → Client (stdout):
 {"jsonrpc": "2.0", "result": {"result": "# Example\n\nMarkdown content..."}, "id": 1}
@@ -151,7 +151,7 @@ MCP uses JSON-RPC 2.0 for message structure:
   "jsonrpc": "2.0",
   "method": "tools/call",
   "params": {
-    "name": "smartscraper",
+    "name": "extract",
     "arguments": {
       "user_prompt": "Extract product names",
       "website_url": "https://example.com"
@@ -199,7 +199,7 @@ Response:
   "result": {
     "tools": [
       {
-        "name": "markdownify",
+        "name": "scrape",
         "description": "Convert a webpage into clean, formatted markdown.",
         "inputSchema": {
           "type": "object",
@@ -232,12 +232,12 @@ Response:
 
 Each tool exposed by the server has a schema that defines its parameters and return type.
 
-### Example: `markdownify` Tool
+### Example: `scrape` Tool
 
 **Python Definition:**
 ```python
 @mcp.tool()
-def markdownify(website_url: str) -> Dict[str, Any]:
+def scrape(website_url: str) -> Dict[str, Any]:
     """
     Convert a webpage into clean, formatted markdown.
 
@@ -253,7 +253,7 @@ def markdownify(website_url: str) -> Dict[str, Any]:
 **Generated MCP Schema:**
 ```json
 {
-  "name": "markdownify",
+  "name": "scrape",
   "description": "Convert a webpage into clean, formatted markdown.",
   "inputSchema": {
     "type": "object",
@@ -275,12 +275,12 @@ def markdownify(website_url: str) -> Dict[str, Any]:
 - Python `Dict[str, Any]` → JSON Schema `"type": "object"`
 - Python `Optional[str]` → JSON Schema `"type": ["string", "null"]`
 
-### Example: `smartscraper` Tool (with optional parameters)
+### Example: `extract` Tool (with optional parameters)
 
 **Python Definition:**
 ```python
 @mcp.tool()
-def smartscraper(
+def extract(
     user_prompt: str,
     website_url: str,
     number_of_scrolls: int = None,
@@ -293,7 +293,7 @@ def smartscraper(
 **Generated MCP Schema:**
 ```json
 {
-  "name": "smartscraper",
+  "name": "extract",
   "description": "Extract structured data from a webpage using AI.",
   "inputSchema": {
     "type": "object",
@@ -458,8 +458,8 @@ AI: "I wasn't able to convert the webpage because your ScrapeGraphAI account has
 User: "What are the main features of ScrapeGraphAI?"
 
 Claude (internal):
-1. Determines that markdownify tool could help
-2. Calls: markdownify("https://scrapegraphai.com")
+1. Determines that scrape tool could help
+2. Calls: scrape("https://scrapegraphai.com")
 3. Receives markdown content
 4. Analyzes content
 5. Responds to user
@@ -518,7 +518,7 @@ async def main():
 
             # Call a tool
             result = await session.call_tool(
-                "markdownify",
+                "scrape",
                 arguments={"website_url": "https://example.com"}
             )
             print(f"Result: {result}")
@@ -543,7 +543,7 @@ else:
 Currently, the server does not implement tool versioning. All tools are v1 implicitly.
 
 **Future Consideration:**
-- Add version to tool names: `smartscraper_v2()`
+- Add version to tool names: `extract_v2()`
 - Maintain backward compatibility with deprecated tools
 - Use MCP metadata for version info
 
@@ -552,11 +552,11 @@ Currently, the server does not implement tool versioning. All tools are v1 impli
 MCP supports streaming results for long-running operations. This could be useful for SmartCrawler:
 
 **Current Approach (polling):**
-1. Call `smartcrawler_initiate()` → get `request_id`
-2. Repeatedly call `smartcrawler_fetch_results(request_id)` until complete
+1. Call `crawl_start()` → get `request_id`
+2. Repeatedly call `crawl_get_status(request_id)` until complete
 
 **Potential Streaming Approach:**
-1. Call `smartcrawler_initiate()` → server keeps connection open
+1. Call `crawl_start()` → server keeps connection open
 2. Server streams progress updates: `{"status": "processing", "pages": 10}`
 3. Server sends final result: `{"status": "completed", "results": [...]}`
 
@@ -618,8 +618,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 @mcp.tool()
-def markdownify(website_url: str) -> Dict[str, Any]:
-    logger.info(f"markdownify called with URL: {website_url}")
+def scrape(website_url: str) -> Dict[str, Any]:
+    logger.info(f"scrape called with URL: {website_url}")
     # ...
 ```
 

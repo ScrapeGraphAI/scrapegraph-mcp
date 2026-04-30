@@ -12,7 +12,7 @@ Complete system architecture documentation including:
 - **Technology Stack** - Python 3.10+, FastMCP, httpx dependencies
 - **Project Structure** - File organization and key files
 - **Core Architecture** - MCP design, server architecture, patterns
-- **MCP Tools** - API v2 tools (markdownify, scrape, smartscraper, searchscraper, crawl, credits, history, monitor, …)
+- **MCP Tools** - API v3 tools (scrape, extract, search, crawl_start, crawl_get_status, schema, credits, history, monitor_*)
 - **API Integration** - ScrapeGraphAI API endpoints and credit system
 - **Deployment** - Smithery, Claude Desktop, Cursor, Docker setup
 - **Recent Updates** - SmartCrawler integration and latest features
@@ -95,14 +95,14 @@ Complete Model Context Protocol integration documentation:
 
 **...available tools and their parameters:**
 - Read: [Project Architecture - MCP Tools](./system/project_architecture.md#mcp-tools)
-- Quick reference: see README “Available Tools” table (v2: + scrape, crawl_stop/resume, credits, sgai_history, monitor_*; removed sitemap, agentic_scrapper, *\_status tools)
+- Quick reference: see README “Available Tools” table (v2: + scrape, crawl_stop/resume, credits, history, monitor_*; removed sitemap, agentic_scrapper, *\_status tools)
 
 **...error handling:**
 - Read: [MCP Protocol - Error Handling](./system/mcp_protocol.md#error-handling)
 - Pattern: Return `{"error": "message"}` instead of raising exceptions
 
 **...how SmartCrawler works:**
-- Read: [Project Architecture - Tool #4 & #5](./system/project_architecture.md#4-smartcrawler_initiate)
+- Read: [Project Architecture - Tool #4 & #5](./system/project_architecture.md#4-crawl_start)
 - Pattern: Initiate (async) → Poll fetch_results until complete
 
 ---
@@ -133,7 +133,7 @@ npx @modelcontextprotocol/inspector scrapegraph-mcp
 
 **Manual Testing (stdio):**
 ```bash
-echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"markdownify","arguments":{"website_url":"https://scrapegraphai.com"}},"id":1}' | scrapegraph-mcp
+echo '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"scrape","arguments":{"website_url":"https://scrapegraphai.com","output_format":"markdown"}},"id":1}' | scrapegraph-mcp
 # (v2: same tool name; backend calls POST /scrape)
 ```
 
@@ -177,11 +177,11 @@ Quick reference to all MCP tools:
 
 | Tool | Notes |
 |------|--------|
-| `markdownify` / `scrape` | POST /scrape (v2) |
-| `smartscraper` | POST /extract; URL only |
-| `searchscraper` | POST /search; num_results 3–20 |
+| `scrape` | POST /scrape (v2) |
+| `extract` | POST /extract; URL only |
+| `search` | POST /search; num_results 3–20 |
 | `smartcrawler_*`, `crawl_stop`, `crawl_resume` | POST/GET /crawl |
-| `credits`, `sgai_history` | GET /credits, /history |
+| `credits`, `history` | GET /credits, /history |
 | `monitor_*` | /monitor namespace |
 
 For detailed tool documentation, see [Project Architecture - MCP Tools](./system/project_architecture.md#mcp-tools).
@@ -229,7 +229,7 @@ For detailed tool documentation, see [Project Architecture - MCP Tools](./system
 
 **Issue: SmartCrawler not returning results**
 - **Cause:** Still processing (async operation)
-- **Solution:** Keep polling `smartcrawler_fetch_results()` until `status == "completed"`
+- **Solution:** Keep polling `crawl_get_status()` until `status == "completed"`
 
 **Issue: Python version error**
 - **Cause:** Python < 3.10
