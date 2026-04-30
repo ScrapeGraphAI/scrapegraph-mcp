@@ -3,17 +3,17 @@
 MCP server for ScapeGraph API integration (API v2).
 
 Aligned with scrapegraph-py v2 ([ScrapeGraphAI/scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84)):
-- markdownify: Page content via POST /scrape (markdown by default)
-- smartscraper: Structured extraction via POST /extract (url + prompt; schema optional)
-- searchscraper: Web search via POST /search (supports numResults, schema, prompt,
+- scrape: Page content via POST /scrape (markdown, html, screenshot, branding, links, images, summary)
+- extract: Structured extraction via POST /extract (url + prompt; schema optional)
+- search: Web search via POST /search (supports numResults, schema, prompt,
     locationGeoCode, timeRange, format/mode)
-- smartcrawler_initiate / smartcrawler_fetch_results: Async crawl via /crawl
+- crawl_start / crawl_get_status: Async crawl via /crawl
     (formats: markdown, html, links, images, summary, branding, screenshot)
 - crawl_stop / crawl_resume: Control running crawl jobs
 - scrape: Format-specific fetch (markdown, html, screenshot, branding, links,
     images, summary) — emitted as v2 `formats[]` entries
-- generate_schema: JSON schema generation via POST /schema
-- credits / sgai_history: Account usage and request history (page/limit/service)
+- schema: JSON schema generation via POST /schema
+- credits / history: Account usage and request history (page/limit/service)
 - monitor_*: Scheduled extraction jobs. `prompt`+`output_schema` are wrapped into
     a v2 `{type: "json", ...}` format entry; `webhook_url` is supported.
 
@@ -21,7 +21,10 @@ All v2 request payloads use camelCase keys (fetchConfig, numResults,
 locationGeoCode, maxDepth, maxPages, maxLinksPerPage, allowExternal,
 includePatterns, excludePatterns, contentTypes, webhookUrl, contentType).
 
-Removed on v2 (no API equivalent): sitemap, agentic_scrapper, markdownify_status, smartscraper_status.
+Removed on v2 (no API equivalent): sitemap, agentic_scrapper, async-status polling endpoints.
+Renamed in v3 to match v2 docs: extract→extract, search→search,
+crawl_start→crawl_start, crawl_get_status→crawl_get_status,
+history→history, schema→schema. markdownify removed (use scrape with markdown format).
 
 Environment variables (match scrapegraph-py v2):
 - SGAI_API_URL (default https://v2-api.scrapegraphai.com/api) — base URL override
@@ -259,25 +262,6 @@ class ScapeGraphClient:
             body["fetchConfig"] = fetch_config_dict
         return self._request("POST", "/scrape", json_body=body)
 
-    def markdownify(
-        self,
-        website_url: str,
-        mode: Optional[str] = None,
-        stealth: Optional[bool] = None,
-        headers: Optional[Dict[str, str]] = None,
-        cookies: Optional[Dict[str, str]] = None,
-        country: Optional[str] = None,
-        timeout: Optional[int] = None,
-        wait: Optional[int] = None,
-        scrolls: Optional[int] = None,
-        mock: Optional[bool] = None,
-    ) -> Dict[str, Any]:
-        fc = self._fetch_config(
-            mode=mode, stealth=stealth, timeout=timeout, wait=wait, headers=headers,
-            cookies=cookies, country=country, scrolls=scrolls, mock=mock,
-        )
-        return self.scrape_v2(website_url, "markdown", fetch_config_dict=fc)
-
     def extract(
         self,
         user_prompt: str,
@@ -307,16 +291,7 @@ class ScapeGraphClient:
             body["fetchConfig"] = fetch_config_dict
         return self._request("POST", "/extract", json_body=body)
 
-    def smartscraper(
-        self,
-        user_prompt: str,
-        website_url: str,
-        output_schema: Optional[Dict[str, Any]] = None,
-        fetch_config_dict: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        return self.extract(user_prompt, website_url, output_schema, fetch_config_dict)
-
-    def search_api(
+    def search(
         self,
         query: str,
         num_results: Optional[int] = None,
@@ -348,31 +323,6 @@ class ScapeGraphClient:
         if fetch_config_dict:
             body["fetchConfig"] = fetch_config_dict
         return self._request("POST", "/search", json_body=body)
-
-    def searchscraper(
-        self,
-        user_prompt: str,
-        num_results: Optional[int] = None,
-        output_schema: Optional[Dict[str, Any]] = None,
-        *,
-        country: Optional[str] = None,
-        prompt: Optional[str] = None,
-        search_format: str = "markdown",
-        search_mode: str = "prune",
-        time_range: Optional[str] = None,
-        fetch_config_dict: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        return self.search_api(
-            user_prompt,
-            num_results=num_results,
-            output_schema=output_schema,
-            country=country,
-            prompt=prompt,
-            search_format=search_format,
-            search_mode=search_mode,
-            time_range=time_range,
-            fetch_config_dict=fetch_config_dict,
-        )
 
     def scrape(
         self,
@@ -443,7 +393,7 @@ class ScapeGraphClient:
             body["fetchConfig"] = fetch_config_dict
         return self._request("POST", "/crawl", json_body=body)
 
-    def smartcrawler_fetch_results(self, request_id: str) -> Dict[str, Any]:
+    def crawl_get_status(self, request_id: str) -> Dict[str, Any]:
         return self._request("GET", f"/crawl/{request_id}")
 
     def crawl_stop(self, crawl_id: str) -> Dict[str, Any]:
@@ -646,22 +596,21 @@ def web_scraping_guide() -> str:
 See [scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84) for the upstream SDK migration.
 
 ## Core tools
-- **markdownify** — `POST /scrape` (markdown output)
 - **scrape** — `POST /scrape` (markdown, html, screenshot, branding, links, images, summary)
-- **smartscraper** — `POST /extract` (url + prompt, optional schema/mode/contentType)
-- **searchscraper** — `POST /search` (query + numResults 1–20; optional schema+prompt, locationGeoCode, timeRange)
-- **smartcrawler_initiate** / **smartcrawler_fetch_results** — `POST/GET /crawl`
+- **extract** — `POST /extract` (url + prompt, optional schema/mode/contentType)
+- **search** — `POST /search` (query + numResults 1–20; optional schema+prompt, locationGeoCode, timeRange)
+- **crawl_start** / **crawl_get_status** — `POST/GET /crawl`
     (formats: markdown, html, links, images, summary, branding, screenshot; maxDepth / maxPages / maxLinksPerPage / allowExternal)
 - **crawl_stop** / **crawl_resume** — control a running job
-- **generate_schema** — `POST /schema`
+- **schema** — `POST /schema`
 - **credits** — `GET /credits`
-- **sgai_history** — `GET /history` (page/limit/service)
+- **history** — `GET /history` (page/limit/service)
 - **monitor_*** — scheduled jobs (`POST/GET/DELETE /monitor`, pause/resume, optional webhook_url)
 
 ## Best practices
-1. Use **markdownify** or **scrape** before **smartscraper** when you only need readable text.
-2. Multi-page **AI** extraction: run **smartscraper** per URL, or use **monitor_create** on a schedule.
-3. Poll **smartcrawler_fetch_results** until the crawl finishes.
+1. Use **scrape** with `output_format="markdown"` before **extract** when you only need readable text.
+2. Multi-page **AI** extraction: run **extract** per URL, or use **monitor_create** on a schedule.
+3. Poll **crawl_get_status** until the crawl finishes.
 4. Override API host with env **SGAI_API_URL** if needed (default `https://v2-api.scrapegraphai.com/api`).
 """
 
@@ -677,38 +626,39 @@ def quick_start_examples() -> str:
 
 ### Extract structured data (single URL)
 ```
-Tool: smartscraper
+Tool: extract
 website_url: https://example.com/product/1
 user_prompt: "Extract name, price, and availability"
 ```
 
 ### Markdown snapshot
 ```
-Tool: markdownify
+Tool: scrape
 website_url: https://docs.example.com
+output_format: "markdown"
 ```
 
 ### Search
 ```
-Tool: searchscraper
+Tool: search
 user_prompt: "Latest Python 3.12 release highlights"
 num_results: 5
 ```
 
 ### Multi-page crawl (markdown/html only)
 ```
-Tool: smartcrawler_initiate
+Tool: crawl_start
 url: https://blog.example.com
 extraction_mode: "markdown"
 max_pages: 15
 depth: 2
 ```
-Then poll `smartcrawler_fetch_results` with the returned `id`.
+Then poll `crawl_get_status` with the returned `id`.
 
 ### Credits and history
 ```
 Tool: credits
-Tool: sgai_history
+Tool: history
 limit: 10
 ```
 
@@ -728,13 +678,13 @@ def api_status() -> str:
 
 - **MCP package version**: 2.0.0 (matches [scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84) API surface)
 - **Default API base**: `https://v2-api.scrapegraphai.com/api` (override with `SGAI_API_URL`)
-- **Auth headers**: `SGAI-APIKEY`, `X-SDK-Version: scrapegraph-mcp@2.0.0`
+- **Auth headers**: `SGAI-APIKEY`, `X-SDK-Version: scrapegraph-mcp@3.0.0`
 
 ## Tools
-markdownify, scrape, smartscraper, searchscraper, smartcrawler_initiate, smartcrawler_fetch_results, crawl_stop, crawl_resume, generate_schema, credits, sgai_history, monitor_create, monitor_list, monitor_get, monitor_pause, monitor_resume, monitor_delete, monitor_activity
+scrape, extract, search, crawl_start, crawl_get_status, crawl_stop, crawl_resume, schema, credits, history, monitor_create, monitor_list, monitor_get, monitor_pause, monitor_resume, monitor_delete, monitor_activity
 
 ## Removed vs legacy MCP
-sitemap, agentic_scrapper, markdownify_status, smartscraper_status — not available on API v2.
+sitemap, agentic_scrapper, async-status polling — not available on API v2. markdownify (v2) removed in v3 (use scrape with format=markdown).
 
 Credit costs are determined by the ScrapeGraphAI API; use **credits** to check balance.
 """
@@ -752,13 +702,13 @@ def common_use_cases() -> str:
 ## 🛍️ E-commerce Data Extraction
 
 ### Product Information Scraping
-**Tool**: smartscraper
+**Tool**: extract
 **Input**: Product page URL + "Extract name, price, description, rating, availability"
 **Output**: Structured JSON with product details
 **Credits**: 10 per page
 
 ### Price Monitoring
-**Tool**: smartcrawler_initiate (AI mode)
+**Tool**: crawl_start (AI mode)
 **Input**: Product category page + price extraction prompt
 **Output**: Structured price data across multiple products
 **Credits**: 10 per page crawled
@@ -766,13 +716,13 @@ def common_use_cases() -> str:
 ## 📰 Content & Research
 
 ### News Article Extraction
-**Tool**: searchscraper
+**Tool**: search
 **Input**: "Latest news about [topic]" + num_results
 **Output**: Article titles, summaries, sources, dates
 **Credits**: 10 per website searched
 
 ### Documentation Conversion
-**Tool**: smartcrawler_initiate (markdown mode)
+**Tool**: crawl_start (markdown mode)
 **Input**: Documentation site root URL
 **Output**: Clean markdown files for all pages
 **Credits**: 2 per page converted
@@ -780,13 +730,13 @@ def common_use_cases() -> str:
 ## 🏢 Business Intelligence
 
 ### Contact Information Gathering
-**Tool**: smartscraper
+**Tool**: extract
 **Input**: Company website + "Find contact details"
 **Output**: Emails, phones, addresses, social media
 **Credits**: 10 per page
 
 ### Competitor Analysis
-**Tool**: searchscraper + smartscraper combination
+**Tool**: search + extract combination
 **Input**: Search for competitors + extract key metrics
 **Output**: Structured competitive intelligence
 **Credits**: Variable based on pages analyzed
@@ -794,13 +744,13 @@ def common_use_cases() -> str:
 ## 🔍 Research & Analysis
 
 ### Academic Paper Research
-**Tool**: searchscraper
+**Tool**: search
 **Input**: Research query + academic site focus
 **Output**: Paper titles, abstracts, authors, citations
 **Credits**: 10 per source website
 
 ### Market Research
-**Tool**: smartcrawler_initiate
+**Tool**: crawl_start
 **Input**: Industry website + data extraction prompts
 **Output**: Market trends, statistics, insights
 **Credits**: 10 per page (AI mode)
@@ -814,7 +764,7 @@ def common_use_cases() -> str:
 **Credits**: Variable based on complexity
 
 ### Multi-step Research Process
-**Workflow**: sitemap → smartcrawler_initiate → smartscraper
+**Workflow**: sitemap → crawl_start → extract
 **Input**: Target site + research objectives
 **Output**: Comprehensive site analysis and data extraction
 **Credits**: Cumulative based on tools used
@@ -855,10 +805,10 @@ def parameter_reference_guide() -> str:
     """
     return """# ScapeGraph MCP Parameter Reference Guide
 
-> **API v2 note:** This document still contains legacy v1-era tool names and parameters in places.
-> Trust the live tool schemas in the MCP client and the module docstring in `server.py` for v2.
-> New tools: `credits`, `sgai_history`, `crawl_stop`, `crawl_resume`, `monitor_*`. Removed: `sitemap`,
-> `agentic_scrapper`, `markdownify_status`, `smartscraper_status`.
+> **API v3 note:** This document still contains legacy v1-era tool names and parameters in places.
+> Trust the live tool schemas in the MCP client and the module docstring in `server.py` for v3.
+> v3 tools: `credits`, `history`, `crawl_stop`, `crawl_resume`, `monitor_*`. Removed: `sitemap`,
+> `agentic_scrapper`, async-status polling endpoints, `markdownify` (use `scrape` with format=markdown).
 
 ## 📋 Complete Parameter Documentation
 
@@ -869,7 +819,7 @@ This guide provides comprehensive documentation for every parameter across all S
 ## 🔧 Common Parameters
 
 ### URL Parameters
-**Used in**: markdownify, smartscraper, searchscraper, smartcrawler_initiate, scrape, monitor_*, and related v2 tools
+**Used in**: scrape, extract, search, crawl_start, monitor_*, and related v2 tools
 
 #### `website_url` / `url`
 - **Type**: `str` (required)
@@ -889,7 +839,7 @@ This guide provides comprehensive documentation for every parameter across all S
 ## 🤖 AI and Extraction Parameters
 
 ### `user_prompt`
-**Used in**: smartscraper, searchscraper, agentic_scrapper
+**Used in**: extract, search, agentic_scrapper
 
 - **Type**: `str` (required)
 - **Purpose**: Natural language instructions for AI extraction
@@ -904,7 +854,7 @@ This guide provides comprehensive documentation for every parameter across all S
   - Use clear, descriptive language
 
 ### `output_schema`
-**Used in**: smartscraper, agentic_scrapper
+**Used in**: extract, agentic_scrapper
 
 - **Type**: `Optional[Union[str, Dict[str, Any]]]`
 - **Purpose**: Define expected output structure
@@ -945,7 +895,7 @@ This guide provides comprehensive documentation for every parameter across all S
 ## 🌐 Content Source Parameters
 
 ### `website_html`
-**Used in**: smartscraper
+**Used in**: extract
 
 - **Type**: `Optional[str]`
 - **Purpose**: Process local HTML content
@@ -957,7 +907,7 @@ This guide provides comprehensive documentation for every parameter across all S
 - **Mutually Exclusive**: Cannot use with `website_url` or `website_markdown`
 
 ### `website_markdown`
-**Used in**: smartscraper
+**Used in**: extract
 
 - **Type**: `Optional[str]`
 - **Purpose**: Process local markdown content
@@ -973,7 +923,7 @@ This guide provides comprehensive documentation for every parameter across all S
 ## 📄 Pagination and Scrolling Parameters
 
 ### `number_of_scrolls`
-**Used in**: smartscraper, searchscraper
+**Used in**: extract, search
 
 - **Type**: `Optional[int]`
 - **Range**: 0-50 scrolls
@@ -990,7 +940,7 @@ This guide provides comprehensive documentation for every parameter across all S
   - Consider site loading behavior
 
 ### `total_pages`
-**Used in**: smartscraper
+**Used in**: extract
 
 - **Type**: `Optional[int]`
 - **Range**: 1-100 pages
@@ -1011,7 +961,7 @@ This guide provides comprehensive documentation for every parameter across all S
 ## 🚀 Fetch/Proxy Parameters
 
 ### `mode`
-**Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
+**Used in**: scrape, extract, crawl_start, monitor_create
 
 - **Type**: `Optional[str]`
 - **Default**: `auto`
@@ -1025,7 +975,7 @@ This guide provides comprehensive documentation for every parameter across all S
 - **Cost**: Same regardless of setting
 
 ### `stealth`
-**Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
+**Used in**: scrape, extract, crawl_start, monitor_create
 
 - **Type**: `Optional[bool]`
 - **Default**: `false`
@@ -1034,24 +984,24 @@ This guide provides comprehensive documentation for every parameter across all S
 - **Combine with any mode**: e.g. `mode="js"` + `stealth=True` for JS rendering with residential proxy
 
 ### `timeout`
-**Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
+**Used in**: scrape, extract, crawl_start, monitor_create
 - **Type**: `Optional[int]`
 - **Range**: 1000-60000 milliseconds
 - **Purpose**: Request timeout
 
 ### `wait`
-**Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
+**Used in**: scrape, extract, crawl_start, monitor_create
 - **Type**: `Optional[int]`
 - **Range**: 0-30000 milliseconds
 - **Purpose**: Wait after page load before scraping
 
 ### `cookies`
-**Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
+**Used in**: scrape, extract, crawl_start, monitor_create
 - **Type**: `Optional[Dict[str, str]]`
 - **Purpose**: Cookies to send with the request
 
 ### `country`
-**Used in**: markdownify, scrape, smartscraper, smartcrawler_initiate, monitor_create
+**Used in**: scrape, extract, crawl_start, monitor_create
 - **Type**: `Optional[str]`
 - **Purpose**: Two-letter country code for geo-located requests (e.g. 'us')
 
@@ -1060,7 +1010,7 @@ This guide provides comprehensive documentation for every parameter across all S
 ## 🔄 Crawling Parameters
 
 ### `extraction_mode`
-**Used in**: smartcrawler_initiate
+**Used in**: crawl_start
 
 - **Type**: `str`
 - **Default**: `"markdown"`
@@ -1072,7 +1022,7 @@ This guide provides comprehensive documentation for every parameter across all S
   - HTML: Full HTML preservation
 
 ### `depth`
-**Used in**: smartcrawler_initiate
+**Used in**: crawl_start
 
 - **Type**: `Optional[int]`
 - **Default**: Unlimited
@@ -1088,7 +1038,7 @@ This guide provides comprehensive documentation for every parameter across all S
   - Consider site structure
 
 ### `max_pages`
-**Used in**: smartcrawler_initiate
+**Used in**: crawl_start
 
 - **Type**: `Optional[int]`
 - **Default**: Unlimited
@@ -1103,7 +1053,7 @@ This guide provides comprehensive documentation for every parameter across all S
   - Markdown mode: `max_pages × 2` credits
 
 ### `same_domain_only`
-**Used in**: smartcrawler_initiate
+**Used in**: crawl_start
 
 - **Type**: `Optional[bool]`
 - **Default**: `true`
@@ -1121,7 +1071,7 @@ This guide provides comprehensive documentation for every parameter across all S
 ## 🔄 Search Parameters
 
 ### `num_results`
-**Used in**: searchscraper
+**Used in**: search
 
 - **Type**: `Optional[int]`
 - **Default**: 3 websites
@@ -1201,8 +1151,8 @@ This guide provides comprehensive documentation for every parameter across all S
 | Tool | Base Cost | Additional Costs |
 |------|-----------|------------------|
 | `markdownify` | 2 credits | None |
-| `smartscraper` | 10 credits | +10 per additional page |
-| `searchscraper` | 30 credits (3 sites) | +10 per additional site |
+| `extract` | 10 credits | +10 per additional page |
+| `search` | 30 credits (3 sites) | +10 per additional site |
 | `smartcrawler` | 2-10 credits/page | Depends on extraction mode |
 | `scrape` | 1 credit | None |
 | `sitemap` | 1 credit | None |
@@ -1238,25 +1188,25 @@ This guide provides comprehensive documentation for every parameter across all S
 
 ### For Simple Content Extraction
 ```
-Tool: markdownify or smartscraper
-Parameters: website_url, user_prompt (if smartscraper)
+Tool: markdownify or extract
+Parameters: website_url, user_prompt (if extract)
 ```
 
 ### For Dynamic Content
 ```
-Tool: smartscraper or scrape
+Tool: extract or scrape
 Parameters: mode="js" (add stealth=True if bot detection is present)
 ```
 
 ### For Multi-Page Content
 ```
-Tool: smartcrawler_initiate
+Tool: crawl_start
 Parameters: max_pages, depth, extraction_mode
 ```
 
 ### For Research Tasks
 ```
-Tool: searchscraper
+Tool: search
 Parameters: num_results, user_prompt
 ```
 
@@ -1298,9 +1248,9 @@ def tool_comparison_guide() -> str:
 | Need | Recommended Tool | Alternative | Credits |
 |------|------------------|-------------|---------|
 | Convert page to markdown | `markdownify` | `scrape` + manual | 2 |
-| Extract specific data | `smartscraper` | `agentic_scrapper` | 10 |
-| Search web for info | `searchscraper` | Multiple `smartscraper` | 30 |
-| Crawl multiple pages | `smartcrawler_initiate` | Loop `smartscraper` | 2-10/page |
+| Extract specific data | `extract` | `agentic_scrapper` | 10 |
+| Search web for info | `search` | Multiple `extract` | 30 |
+| Crawl multiple pages | `crawl_start` | Loop `extract` | 2-10/page |
 | Get raw page content | `scrape` | `markdownify` | 1 |
 | Map site structure | `sitemap` | Manual discovery | 1 |
 | Complex automation | `agentic_scrapper` | Custom scripting | Variable |
@@ -1315,21 +1265,21 @@ def tool_comparison_guide() -> str:
 - **Use markdownify when**: You need readable content
 - **Use scrape when**: You need full HTML or custom parsing
 
-#### smartscraper vs agentic_scrapper
-- **smartscraper**: Single-page AI extraction
+#### extract vs agentic_scrapper
+- **extract**: Single-page AI extraction
 - **agentic_scrapper**: Multi-step automated workflows
-- **Use smartscraper when**: Simple data extraction from one page
+- **Use extract when**: Simple data extraction from one page
 - **Use agentic_scrapper when**: Complex navigation required
 
 ### Scale & Automation
 
 #### Single Page Tools
-- `markdownify`, `smartscraper`, `scrape`, `sitemap`
+- `markdownify`, `extract`, `scrape`, `sitemap`
 - **Pros**: Fast, predictable costs, simple
 - **Cons**: Manual iteration for multiple pages
 
 #### Multi-Page Tools
-- `smartcrawler_initiate`, `searchscraper`, `agentic_scrapper`
+- `crawl_start`, `search`, `agentic_scrapper`
 - **Pros**: Automated scale, comprehensive results
 - **Cons**: Higher costs, longer processing times
 
@@ -1341,11 +1291,11 @@ def tool_comparison_guide() -> str:
 - `sitemap`: Site structure
 
 #### Medium Cost (10 credits)
-- `smartscraper`: AI data extraction
-- `searchscraper`: Per website searched
+- `extract`: AI data extraction
+- `search`: Per website searched
 
 #### Variable Cost
-- `smartcrawler_initiate`: 2-10 credits per page
+- `crawl_start`: 2-10 credits per page
 - `agentic_scrapper`: Depends on complexity
 
 ## 🚀 Performance Characteristics
@@ -1354,21 +1304,21 @@ def tool_comparison_guide() -> str:
 1. **scrape**: 2-5 seconds
 2. **sitemap**: 3-8 seconds
 3. **markdownify**: 5-15 seconds
-4. **smartscraper**: 15-45 seconds
-5. **searchscraper**: 30-90 seconds
+4. **extract**: 15-45 seconds
+5. **search**: 30-90 seconds
 6. **smartcrawler**: 1-5 minutes (async)
 7. **agentic_scrapper**: 2-10 minutes
 
 ### Reliability
 - **Highest**: `scrape`, `sitemap`, `markdownify`
-- **High**: `smartscraper`, `searchscraper`
+- **High**: `extract`, `search`
 - **Variable**: `smartcrawler`, `agentic_scrapper` (depends on site complexity)
 
 ## 🎨 Output Format Comparison
 
 ### Structured Data
-- **smartscraper**: JSON with extracted fields
-- **searchscraper**: JSON with search results
+- **extract**: JSON with extracted fields
+- **search**: JSON with search results
 - **agentic_scrapper**: Custom schema support
 
 ### Content Formats
@@ -1377,8 +1327,8 @@ def tool_comparison_guide() -> str:
 - **sitemap**: URL list/structure
 
 ### Async Operations
-- **smartcrawler_initiate**: Returns request ID
-- **smartcrawler_fetch_results**: Returns final data
+- **crawl_start**: Returns request ID
+- **crawl_get_status**: Returns final data
 - All others: Immediate response
 
 ## 🛠️ Integration Patterns
@@ -1386,20 +1336,20 @@ def tool_comparison_guide() -> str:
 ### Simple Workflows
 ```
 URL → markdownify → Markdown content
-URL → smartscraper → Structured data
-Query → searchscraper → Research results
+URL → extract → Structured data
+Query → search → Research results
 ```
 
 ### Complex Workflows
 ```
-URL → sitemap → smartcrawler_initiate → smartcrawler_fetch_results
+URL → sitemap → crawl_start → crawl_get_status
 URL → agentic_scrapper (with steps) → Complex extracted data
-Query → searchscraper → smartscraper (on results) → Detailed analysis
+Query → search → extract (on results) → Detailed analysis
 ```
 
 ### Hybrid Approaches
 ```
-URL → scrape (check if JS needed) → smartscraper (extract data)
+URL → scrape (check if JS needed) → extract (extract data)
 URL → sitemap (map structure) → smartcrawler (batch process)
 ```
 
@@ -1410,12 +1360,12 @@ URL → sitemap (map structure) → smartcrawler (batch process)
 - ✅ Converting documentation/articles
 - ✅ Cost is a primary concern
 
-**Choose smartscraper when:**
+**Choose extract when:**
 - ✅ Need specific data extracted
 - ✅ Working with single pages
 - ✅ Want AI-powered extraction
 
-**Choose searchscraper when:**
+**Choose search when:**
 - ✅ Need to find information across web
 - ✅ Research-oriented tasks
 - ✅ Don't have specific URLs
@@ -1432,54 +1382,9 @@ URL → sitemap (map structure) → smartcrawler (batch process)
 """
 
 
-# Add tool for markdownify
+# Add tool for extract
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
-def markdownify(
-    website_url: str,
-    ctx: Context,
-    mode: Optional[Literal["auto", "fast", "js"]] = None,
-    stealth: Optional[bool] = None,
-    headers: Optional[Dict[str, str]] = None,
-    cookies: Optional[Dict[str, str]] = None,
-    country: Optional[str] = None,
-    timeout: Optional[int] = None,
-    wait: Optional[int] = None,
-    scrolls: Optional[int] = None,
-    mock: Optional[bool] = None,
-) -> Dict[str, Any]:
-    """
-    Convert a webpage into clean, formatted markdown (API v2 POST /scrape).
-
-    Args:
-        website_url: URL to convert (must include http:// or https://).
-        mode: Fetch/proxy mode controlling how the page is retrieved.
-            - auto: Automatically selects the best provider chain (default).
-            - fast: Direct HTTP fetch via impit (fastest, no JS).
-            - js: Headless browser rendering for JavaScript-heavy pages.
-        stealth: Use residential proxies to bypass bot detection (+5 credits).
-        headers: Custom HTTP headers to send with the request.
-        cookies: Cookies to send with the request.
-        country: Two-letter country code for geo-located requests (e.g. 'us').
-        timeout: Request timeout in milliseconds (1000-60000).
-        wait: Milliseconds to wait after page load before scraping (0-30000).
-        scrolls: Number of scrolls to perform (0-100).
-        mock: Use mock mode for testing (no credits consumed).
-    """
-    try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
-        return client.markdownify(
-            website_url=website_url, mode=mode, stealth=stealth, headers=headers,
-            cookies=cookies, country=country, timeout=timeout, wait=wait,
-            scrolls=scrolls, mock=mock,
-        )
-    except Exception as e:
-        return {"error": str(e)}
-
-
-# Add tool for smartscraper
-@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
-def smartscraper(
+def extract(
     user_prompt: str,
     website_url: str,
     ctx: Context,
@@ -1548,7 +1453,7 @@ def smartscraper(
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
         )
 
-        return client.smartscraper(
+        return client.extract(
             user_prompt=user_prompt,
             website_url=website_url,
             output_schema=normalized_schema,
@@ -1558,9 +1463,9 @@ def smartscraper(
         return {"error": str(e)}
 
 
-# Add tool for searchscraper
+# Add tool for search
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": False})
-def searchscraper(
+def search(
     user_prompt: str,
     ctx: Context,
     num_results: Optional[int] = None,
@@ -1638,7 +1543,7 @@ def searchscraper(
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
         )
 
-        return client.searchscraper(
+        return client.search(
             user_prompt,
             num_results=num_results,
             output_schema=normalized_schema,
@@ -1653,9 +1558,9 @@ def searchscraper(
         return {"error": str(e)}
 
 
-# Add tool for SmartCrawler initiation
+# Add tool for crawl_start
 @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False})
-def smartcrawler_initiate(
+def crawl_start(
     url: str,
     ctx: Context,
     extraction_mode: Literal[
@@ -1681,7 +1586,7 @@ def smartcrawler_initiate(
     """
     Start an asynchronous multi-page crawl (API v2 POST /crawl).
 
-    Poll smartcrawler_fetch_results with the returned id.
+    Poll crawl_get_status with the returned id.
 
     Args:
         url: Starting URL (http/https).
@@ -1738,9 +1643,9 @@ def smartcrawler_initiate(
         return {"error": str(e)}
 
 
-# Add tool for fetching SmartCrawler results
+# Add tool for crawl_get_status
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True})
-def smartcrawler_fetch_results(request_id: str, ctx: Context) -> Dict[str, Any]:
+def crawl_get_status(request_id: str, ctx: Context) -> Dict[str, Any]:
     """
     Retrieve the results of an asynchronous SmartCrawler operation.
 
@@ -1750,7 +1655,7 @@ def smartcrawler_fetch_results(request_id: str, ctx: Context) -> Dict[str, Any]:
     Read-only operation that safely retrieves results without side effects.
 
     Args:
-        request_id: The unique request ID returned by smartcrawler_initiate. Use this to retrieve the crawling results. Keep polling until status is 'completed'. Example: 'req_abc123xyz'
+        request_id: The unique request ID returned by crawl_start. Use this to retrieve the crawling results. Keep polling until status is 'completed'. Example: 'req_abc123xyz'
 
     Returns:
         Dictionary containing:
@@ -1762,7 +1667,7 @@ def smartcrawler_fetch_results(request_id: str, ctx: Context) -> Dict[str, Any]:
     try:
         api_key = get_api_key(ctx)
         client = ScapeGraphClient(api_key)
-        return client.smartcrawler_fetch_results(request_id)
+        return client.crawl_get_status(request_id)
     except Exception as e:
         return {"error": str(e)}
 
@@ -1801,7 +1706,7 @@ def credits(ctx: Context) -> Dict[str, Any]:
 
 
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": False})
-def sgai_history(
+def history(
     ctx: Context,
     service: Optional[str] = None,
     page: Optional[int] = None,
@@ -1922,7 +1827,7 @@ def monitor_create(
 
 
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": False})
-def generate_schema(
+def schema(
     prompt: str,
     ctx: Context,
     existing_schema: Optional[

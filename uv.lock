@@ -1339,7 +1339,7 @@ wheels = [
 
 [[package]]
 name = "scrapegraph-mcp"
-version = "1.0.1"
+version = "3.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },

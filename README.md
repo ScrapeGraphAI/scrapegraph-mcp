@@ -40,13 +40,28 @@ This MCP server targets **ScrapeGraph API v2** (`https://v2-api.scrapegraphai.co
 
 ## Key Features
 
-- **Scrape & extract**: `markdownify` / `scrape` (POST /scrape), `smartscraper` (POST /extract, URL only)
-- **Search**: `searchscraper` (POST /search; `num_results` clamped 3–20)
-- **Crawl**: Async multi-page crawl in **markdown** or **html** only; `crawl_stop` / `crawl_resume`
+- **Scrape & extract**: `scrape` (POST /scrape, multi-format), `extract` (POST /extract, URL + prompt)
+- **Search**: `search` (POST /search; `num_results` clamped 3–20)
+- **Crawl**: Async multi-page crawl with `crawl_start` / `crawl_get_status` / `crawl_stop` / `crawl_resume`
+- **Schema**: `schema` (POST /schema) — generate or augment a JSON Schema from a prompt
 - **Monitors**: Scheduled jobs via `monitor_create`, `monitor_list`, `monitor_get`, pause/resume/delete, `monitor_activity` (paginated tick history)
-- **Account**: `credits`, `sgai_history`
+- **Account**: `credits`, `history`
 - **Easy integration**: Claude Desktop, Cursor, Smithery, HTTP transport
 - **Developer docs**: `.agent/` folder
+
+## Migration: v2 → v3
+
+v3 renames every MCP tool that diverged from the v2 API docs. **Hard rename, no aliases.**
+
+| v2 (old) | v3 (new) |
+|---|---|
+| `smartscraper` | `extract` |
+| `searchscraper` | `search` |
+| `smartcrawler_initiate` | `crawl_start` |
+| `smartcrawler_fetch_results` | `crawl_get_status` |
+| `sgai_history` | `history` |
+| `generate_schema` | `schema` |
+| `markdownify` | **removed** — use `scrape` with `output_format="markdown"` |
 
 ## Quick Start
 
@@ -73,19 +88,19 @@ That's it! The server is now available to your AI assistant.
 
 | Tool | Role |
 |------|------|
-| `markdownify` | POST /scrape (markdown) |
-| `scrape` | POST /scrape (`output_format`: markdown, html, screenshot, branding) |
-| `smartscraper` | POST /extract (requires `website_url`; no inline HTML/markdown body on v2) |
-| `searchscraper` | POST /search (`num_results` 3–20; `time_range` / `number_of_scrolls` ignored on v2) |
-| `smartcrawler_initiate` | POST /crawl — `extraction_mode` **`markdown`** or **`html`** (default markdown). No AI crawl across pages. |
-| `smartcrawler_fetch_results` | GET /crawl/:id |
+| `scrape` | POST /scrape (`output_format`: markdown, html, screenshot, branding, links, images, summary) |
+| `extract` | POST /extract (requires `website_url` + `user_prompt`; optional `output_schema`) |
+| `search` | POST /search (`num_results` 1–20; supports `country_search`, `time_range`, `output_schema`) |
+| `crawl_start` | POST /crawl — `extraction_mode` markdown / html / links / images / summary / branding / screenshot |
+| `crawl_get_status` | GET /crawl/:id (poll until `status: completed`) |
 | `crawl_stop`, `crawl_resume` | POST /crawl/:id/stop \| resume |
+| `schema` | POST /schema (generate or augment a JSON Schema from a prompt) |
 | `credits` | GET /credits |
-| `sgai_history` | GET /history |
+| `history` | GET /history (paginated, `service` filter) |
 | `monitor_create`, `monitor_list`, `monitor_get`, `monitor_pause`, `monitor_resume`, `monitor_delete` | /monitor API |
 | `monitor_activity` | GET /monitor/:id/activity (paginated tick history: `id`, `createdAt`, `status`, `changed`, `elapsedMs`, `diffs`) |
 
-**Removed vs older MCP releases:** `sitemap`, `agentic_scrapper`, `markdownify_status`, `smartscraper_status` (no v2 endpoints).
+**Removed:** `sitemap`, `agentic_scrapper`, async-status polling, and (in v3) `markdownify` — use `scrape` with `output_format="markdown"`.
 
 ## Setup Instructions
 
@@ -386,7 +401,7 @@ root_agent = LlmAgent(
                 timeout=300.0,)
             ),
             # Optional: Filter which tools from the MCP server are exposed
-            # tool_filter=['markdownify', 'smartscraper', 'searchscraper']
+            # tool_filter=['scrape', 'extract', 'search']
         )
     ],
 )
@@ -403,7 +418,7 @@ root_agent = LlmAgent(
 - By default, all registered MCP tools are exposed to the agent (see [Available Tools](#available-tools))
 - Use `tool_filter` to limit which tools are available:
   ```python
-  tool_filter=['markdownify', 'smartscraper', 'searchscraper']
+  tool_filter=['scrape', 'extract', 'search']
   ```
 
 **API Key Configuration:**
@@ -430,26 +445,26 @@ The server enables sophisticated queries across various scraping scenarios:
 
 ### Single Page Scraping
 - **Markdownify**: "Convert the ScrapeGraph documentation page to markdown"
-- **SmartScraper**: "Extract all product names, prices, and ratings from this e-commerce page"
-- **SmartScraper with scrolling**: "Scrape this infinite scroll page with 5 scrolls and extract all items"
+- **Extract**: "Extract all product names, prices, and ratings from this e-commerce page"
+- **Extract with scrolling**: "Scrape this infinite scroll page with 5 scrolls and extract all items"
 - **Basic Scrape**: "Fetch the HTML content of this JavaScript-heavy page with full rendering"
 
 ### Search and Research
-- **SearchScraper**: "Research and summarize recent developments in AI-powered web scraping"
-- **SearchScraper**: "Search for the top 5 articles about machine learning frameworks and extract key insights"
-- **SearchScraper**: "Find recent news about GPT-4 and provide a structured summary"
-- **SearchScraper**: v2 does not apply `time_range`; phrase queries to bias recency in natural language instead
+- **Search**: "Research and summarize recent developments in AI-powered web scraping"
+- **Search**: "Search for the top 5 articles about machine learning frameworks and extract key insights"
+- **Search**: "Find recent news about GPT-4 and provide a structured summary"
+- **Search**: v2 does not apply `time_range`; phrase queries to bias recency in natural language instead
 
 ### Website analysis
-- Use **`smartcrawler_initiate`** (markdown/html) plus **`smartcrawler_fetch_results`** to map and capture multi-page content; there is no separate **sitemap** tool on v2.
+- Use **`crawl_start`** plus **`crawl_get_status`** to map and capture multi-page content; there is no separate **sitemap** tool on v2.
 
 ### Multi-page crawling
-- **SmartCrawler (markdown/html)**: "Crawl the blog in markdown mode and poll until complete"
-- For structured fields per page, run **`smartscraper`** on individual URLs (or **`monitor_create`** on a schedule)
+- **Crawl**: "Crawl the blog in markdown mode and poll until complete"
+- For structured fields per page, run **`extract`** on individual URLs (or **`monitor_create`** on a schedule)
 
 ### Monitors and account
 - **Monitor**: "Run this extract prompt on https://example.com every day at 9am" (`monitor_create` with interval)
-- **Credits / history**: `credits`, `sgai_history`
+- **Credits / history**: `credits`, `history`
 - **Agentic Scraper**: "Execute a complex workflow: login, navigate to reports, download data, and extract summary statistics"
 
 ## Error Handling
@@ -487,9 +502,9 @@ This ensures proper execution in the Windows environment.
 - **Cause**: Insufficient credits
 - **Solution**: Add credits to your ScrapeGraph account
 
-**SmartCrawler not returning results**
+**Crawl not returning results**
 - **Cause**: Still processing (asynchronous operation)
-- **Solution**: Keep polling `smartcrawler_fetch_results()` until status is "completed"
+- **Solution**: Keep polling `crawl_get_status()` until status is "completed"
 
 **Tools not appearing in Claude Desktop**
 - **Cause**: Server not starting or configuration error
