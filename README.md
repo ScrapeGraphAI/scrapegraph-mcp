@@ -1,6 +1,8 @@
 # ScrapeGraph MCP Server
 
-![Demo](https://raw.githubusercontent.com/ScrapeGraphAI/scrapegraph-mcp/main/assets/demo.gif)
+<p align="center">
+  <img src="./assets/scrapegraphAI.svg" width="250" alt="ScrapegraphAI Logo">
+</p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
