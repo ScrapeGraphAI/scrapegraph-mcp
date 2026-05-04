@@ -1,5 +1,7 @@
 # ScrapeGraph MCP Server
 
+![Demo](https://raw.githubusercontent.com/ScrapeGraphAI/scrapegraph-mcp/main/assets/demo.gif)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 [![smithery badge](https://smithery.ai/badge/@ScrapeGraphAI/scrapegraph-mcp)](https://smithery.ai/server/@ScrapeGraphAI/scrapegraph-mcp)
@@ -7,7 +9,6 @@
 
 A production-ready [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) server that provides seamless integration with the [ScrapeGraph AI](https://scrapegraphai.com) API. This server enables language models to leverage advanced AI-powered web scraping capabilities with enterprise-grade reliability.
 
-[![Demo](assets/demo.gif)](https://scrapegraphai.com/?utm_source=github&utm_medium=readme&utm_campaign=api_banner&utm_content=api_banner_image)
 ## Table of Contents
 
 - [Key Features](#key-features)
