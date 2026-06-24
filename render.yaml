@@ -23,5 +23,20 @@ services:
       - key: MCP_TRANSPORT
         value: http
 
-      # Note: SGAI_API_KEY is NOT set here.
-      # Each user passes their own API key via mcp-remote from their local environment.
+      # ── OAuth 2.1 (MCP authorization) ──────────────────────────────────────
+      # When MCP_OAUTH_AUTH_SERVER is set, this server runs as an OAuth resource
+      # server: clients sign in via the better-auth web app (no API key needed) and
+      # the access token is forwarded to the ScrapeGraphAI API. Unset it to fall back
+      # to API-key-only auth.
+      - key: MCP_OAUTH_AUTH_SERVER
+        value: https://scrapegraphai.com
+      # This server's own public URL (used for OAuth protected-resource metadata).
+      - key: MCP_PUBLIC_URL
+        value: https://mcp.scrapegraphai.com
+      # Optional override of the token verification endpoint. Defaults to
+      # {MCP_OAUTH_AUTH_SERVER}/api/auth/mcp/get-session
+      # - key: MCP_OAUTH_VERIFY_URL
+      #   value: https://scrapegraphai.com/api/auth/mcp/get-session
+
+      # Note: SGAI_API_KEY is NOT set here. Legacy clients can still pass their own
+      # API key via the X-API-Key header (mcp-remote); OAuth is additive.

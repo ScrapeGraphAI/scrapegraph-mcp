@@ -558,10 +558,19 @@ scrapegraph-mcp
 
 ### Configuration
 
-**API Key Sources (in order of precedence):**
-1. `--config` parameter (Smithery): `"{\"scrapegraphApiKey\":\"key\"}"`
-2. Environment variable: `SGAI_API_KEY`
-3. Default: `None` (server fails to initialize)
+**Credential Sources (in order of precedence):**
+1. **OAuth 2.1 Bearer token** (remote only) — when `MCP_OAUTH_AUTH_SERVER` is set, a
+   verified access token from the request is forwarded as `Authorization: Bearer`.
+   See [MCP Protocol — Authentication](./mcp_protocol.md#authentication).
+2. `--config` parameter (Smithery): `"{\"scrapegraphApiKey\":\"key\"}"`
+3. `X-API-Key` header (remote/mcp-remote)
+4. Environment variable: `SGAI_API_KEY`
+5. Default: `None` (server fails to initialize)
+
+**OAuth env vars (remote resource-server mode):**
+- `MCP_OAUTH_AUTH_SERVER` — authorization server root URL: the better-auth web app that serves `/api/auth/*` (e.g. `https://scrapegraphai.com`); unset = OAuth disabled
+- `MCP_PUBLIC_URL` — this server's public base URL (default `http://localhost:8000`)
+- `MCP_OAUTH_VERIFY_URL` — optional override of the token verification endpoint (default `{AS}/api/auth/mcp/get-session`)
 
 **Server Transport:**
 - **stdio** - Standard input/output (default for MCP)

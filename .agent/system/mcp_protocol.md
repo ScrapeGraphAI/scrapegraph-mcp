@@ -564,15 +564,37 @@ MCP supports streaming results for long-running operations. This could be useful
 
 ### Authentication
 
-**Current Approach:**
-- API key passed via environment variable or config parameter
-- Single API key for entire server instance
-- No per-tool authentication
+The server resolves a per-request credential via `get_credentials(ctx)` and builds
+the downstream HTTP client with `make_client(ctx)`. Two modes are supported, OAuth
+first with API key as fallback:
+
+**1. OAuth 2.1 (remote / HTTP — preferred):**
+- Enabled when `MCP_OAUTH_AUTH_SERVER` is set. The server then runs as an MCP OAuth
+  *resource server* via FastMCP's `RemoteAuthProvider`.
+- The ScrapeGraphAI web app at `https://scrapegraphai.com` (better-auth `mcp()`
+  plugin, serving `/api/auth/*`) is the *authorization server*. Clients sign in
+  there; no API key is needed afterwards.
+- Incoming Bearer tokens are validated by `BetterAuthTokenVerifier`, which calls the
+  AS session endpoint (`/api/auth/mcp/get-session`, override via `MCP_OAUTH_VERIFY_URL`).
+  better-auth issues *opaque* tokens (not JWTs), so validation is a server-to-server
+  lookup that returns `null` (HTTP 200) for invalid/expired tokens.
+- The verified raw token is forwarded to the ScrapeGraphAI API as
+  `Authorization: Bearer <token>`; the API resolves the user from it.
+- Protected-resource metadata is exposed at `/.well-known/oauth-protected-resource`
+  using `MCP_PUBLIC_URL` as this server's public base URL.
+
+**2. API key (stdio / Smithery / legacy remote — fallback):**
+- Used when OAuth is disabled or no OAuth context is present on the request.
+- Key sourced from the `X-API-Key` header (remote), `SGAI_API_KEY` env, or `--config`.
+- Forwarded to the ScrapeGraphAI API as the `SGAI-APIKEY` header (scrapegraph-py v2
+  wire format).
+
+**Env vars:** `MCP_OAUTH_AUTH_SERVER` (AS root URL), `MCP_PUBLIC_URL` (this server's
+public URL, default `http://localhost:8000`), `MCP_OAUTH_VERIFY_URL` (optional override).
 
 **Future Consideration:**
-- Support multiple API keys (user-specific)
-- OAuth integration
-- JWT tokens
+- Token refresh handling for long-running MCP connections
+- Workspace/subscription attribution for OAuth tokens
 
 ### Rate Limiting
 

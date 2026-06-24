@@ -75,11 +75,13 @@ For comprehensive parameter documentation, use the resource:
 import json
 import logging
 import os
-from typing import Annotated, Any, Dict, List, Literal, Optional, Union
+from datetime import datetime, timezone
+from typing import Annotated, Any, Dict, List, Literal, Optional, Tuple, Union
 
 import httpx
 from fastmcp import Context, FastMCP
-from pydantic import AliasChoices, BaseModel, Field
+from fastmcp.server.auth import AccessToken, RemoteAuthProvider, TokenVerifier
+from pydantic import AliasChoices, AnyHttpUrl, BaseModel, Field
 from smithery.decorators import smithery
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -169,17 +171,31 @@ def _build_json_format_entry(
 class ScapeGraphClient:
     """HTTP client for ScrapeGraphAI API v2 (see scrapegraph-py PR #84)."""
 
-    def __init__(self, api_key: str, base_url: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        *,
+        bearer_token: Optional[str] = None,
+    ) -> None:
         self.api_key = api_key
         self.base_url = (base_url or _api_base_url()).rstrip("/")
-        # Match scrapegraph-py v2 wire format: single SGAI-APIKEY header. We keep
-        # Content-Type/accept for broker compatibility and X-SDK-Version for telemetry.
-        self.headers = {
-            "SGAI-APIKEY": api_key,
+        # Two auth modes against the ScrapeGraphAI API:
+        # - bearer_token: an OAuth 2.1 access token (MCP OAuth flow). Forwarded as a
+        #   standard Authorization: Bearer header; the API resolves the user from it.
+        # - api_key: the legacy SGAI-APIKEY wire format (matches scrapegraph-py v2).
+        # Content-Type/accept are kept for broker compatibility, X-SDK-Version for telemetry.
+        common = {
             "Content-Type": "application/json",
             "accept": "application/json",
             "X-SDK-Version": f"scrapegraph-mcp@{MCP_SERVER_VERSION}",
         }
+        if bearer_token:
+            self.headers = {"Authorization": f"Bearer {bearer_token}", **common}
+        elif api_key:
+            self.headers = {"SGAI-APIKEY": api_key, **common}
+        else:
+            raise ValueError("ScapeGraphClient requires either api_key or bearer_token")
         self.client = httpx.Client(timeout=httpx.Timeout(_api_timeout_s()))
 
     def _parse_response(self, response: httpx.Response) -> Dict[str, Any]:
@@ -572,8 +588,126 @@ def get_api_key(ctx: Context) -> str:
     )
 
 
+def get_credentials(ctx: Context) -> Tuple[str, str]:
+    """Resolve the credential to authenticate against the ScrapeGraphAI API.
+
+    Returns a (kind, value) pair:
+    - ("bearer", token): an OAuth 2.1 access token verified by the auth provider.
+      Present only when the server runs with OAuth enabled and the client authenticated.
+    - ("apikey", key): the legacy API key from the X-API-Key header or session config.
+
+    OAuth takes priority; the API-key path is the fallback for stdio/Smithery and for
+    backward compatibility with existing remote users.
+    """
+    try:
+        from fastmcp.server.dependencies import get_access_token
+
+        access_token = get_access_token()
+        if access_token is not None and getattr(access_token, "token", None):
+            return ("bearer", access_token.token)
+    except Exception:
+        # No OAuth context (stdio/Smithery, or OAuth disabled) — fall back to API key.
+        pass
+
+    return ("apikey", get_api_key(ctx))
+
+
+def make_client(ctx: Context) -> ScapeGraphClient:
+    """Build a ScapeGraphClient using whichever credential the request carries."""
+    kind, value = get_credentials(ctx)
+    if kind == "bearer":
+        return ScapeGraphClient(bearer_token=value)
+    return ScapeGraphClient(api_key=value)
+
+
+class BetterAuthTokenVerifier(TokenVerifier):
+    """Verify opaque OAuth access tokens against a better-auth MCP authorization server.
+
+    better-auth (the ScrapeGraphAI web app) issues opaque access tokens, not JWTs, so
+    we validate by calling its MCP session endpoint (`/api/auth/mcp/get-session`), which
+    returns the stored token record (userId, scopes, expiry) for a valid Bearer token or
+    `null` otherwise. The raw token is then forwarded downstream to the ScrapeGraphAI API,
+    which resolves the user itself — so we only need to confirm validity here.
+    """
+
+    def __init__(self, verify_url: str, base_url: Optional[str] = None) -> None:
+        super().__init__(base_url=base_url)
+        self.verify_url = verify_url
+
+    async def verify_token(self, token: str) -> Optional[AccessToken]:
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
+                resp = await client.get(
+                    self.verify_url, headers={"Authorization": f"Bearer {token}"}
+                )
+        except httpx.HTTPError as exc:
+            logger.warning("OAuth token verification request failed: %s", exc)
+            return None
+
+        if resp.status_code != 200:
+            return None
+        try:
+            data = resp.json()
+        except json.JSONDecodeError:
+            return None
+        if not data:  # better-auth returns `null` (200) for an invalid/expired token
+            return None
+
+        scopes_raw = data.get("scopes") or ""
+        scopes = [s for s in scopes_raw.replace(",", " ").split() if s]
+
+        expires_at: Optional[int] = None
+        raw_exp = data.get("accessTokenExpiresAt")
+        if isinstance(raw_exp, str):
+            try:
+                parsed = datetime.fromisoformat(raw_exp.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                expires_at = int(parsed.timestamp())
+            except ValueError:
+                expires_at = None
+
+        return AccessToken(
+            token=token,
+            client_id=str(data.get("clientId") or "scrapegraph-mcp"),
+            scopes=scopes,
+            expires_at=expires_at,
+            claims={"sub": data.get("userId")} if data.get("userId") else {},
+        )
+
+
+def _build_auth_provider() -> Optional[RemoteAuthProvider]:
+    """Build the OAuth resource-server provider when OAuth env is configured.
+
+    Activated only for remote (HTTP) deployments by setting MCP_OAUTH_AUTH_SERVER to the
+    better-auth web app's public base URL. When unset (local stdio / Smithery), the server
+    keeps the legacy API-key auth and no OAuth metadata is exposed.
+
+    Env:
+    - MCP_OAUTH_AUTH_SERVER: AS public root URL, e.g. https://scrapegraphai.com
+    - MCP_PUBLIC_URL: this server's public base URL (default http://localhost:8000)
+    - MCP_OAUTH_VERIFY_URL: override the token verification endpoint
+      (default {MCP_OAUTH_AUTH_SERVER}/api/auth/mcp/get-session)
+    """
+    as_url = os.environ.get("MCP_OAUTH_AUTH_SERVER")
+    if not as_url:
+        return None
+    as_url = as_url.rstrip("/")
+    public_url = os.environ.get("MCP_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+    verify_url = os.environ.get(
+        "MCP_OAUTH_VERIFY_URL", f"{as_url}/api/auth/mcp/get-session"
+    )
+    logger.info("OAuth enabled: authorization server %s (verify %s)", as_url, verify_url)
+    return RemoteAuthProvider(
+        token_verifier=BetterAuthTokenVerifier(verify_url, base_url=public_url),
+        authorization_servers=[AnyHttpUrl(as_url)],
+        base_url=public_url,
+        resource_name="ScrapeGraph MCP Server",
+    )
+
+
 # Create MCP server instance
-mcp = FastMCP("ScapeGraph API MCP Server")
+mcp = FastMCP("ScapeGraph API MCP Server", auth=_build_auth_provider())
 
 
 # Health check endpoint for remote deployments (Render, etc.)
@@ -1427,8 +1561,7 @@ def extract(
         mock: Use mock mode for testing.
     """
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
 
         # Parse output_schema if it's a JSON string
         normalized_schema: Optional[Dict[str, Any]] = None
@@ -1519,8 +1652,7 @@ def search(
         mock: Use mock mode for testing.
     """
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
 
         normalized_schema: Optional[Dict[str, Any]] = None
         if isinstance(output_schema, dict):
@@ -1610,8 +1742,7 @@ def crawl_start(
         mock: Use mock mode for testing.
     """
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
 
         d = 2 if depth is None else depth
         mp = 10 if max_pages is None else max_pages
@@ -1665,8 +1796,7 @@ def crawl_get_status(request_id: str, ctx: Context) -> Dict[str, Any]:
         Keep polling until status is 'completed' to get final results
     """
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         return client.crawl_get_status(request_id)
     except Exception as e:
         return {"error": str(e)}
@@ -1676,8 +1806,7 @@ def crawl_get_status(request_id: str, ctx: Context) -> Dict[str, Any]:
 def crawl_stop(crawl_id: str, ctx: Context) -> Dict[str, Any]:
     """Stop a running crawl job (API v2 POST /crawl/:id/stop)."""
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         return client.crawl_stop(crawl_id)
     except Exception as e:
         return {"error": str(e)}
@@ -1687,8 +1816,7 @@ def crawl_stop(crawl_id: str, ctx: Context) -> Dict[str, Any]:
 def crawl_resume(crawl_id: str, ctx: Context) -> Dict[str, Any]:
     """Resume a stopped crawl job (API v2 POST /crawl/:id/resume)."""
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         return client.crawl_resume(crawl_id)
     except Exception as e:
         return {"error": str(e)}
@@ -1698,8 +1826,7 @@ def crawl_resume(crawl_id: str, ctx: Context) -> Dict[str, Any]:
 def credits(ctx: Context) -> Dict[str, Any]:
     """Return remaining API credits (API v2 GET /credits)."""
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         return client.credits()
     except Exception as e:
         return {"error": str(e)}
@@ -1729,8 +1856,7 @@ def history(
         offset: Legacy offset; must be a non-negative multiple of limit.
     """
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         return client.history(
             service=service,
             page=page,
@@ -1794,8 +1920,7 @@ def monitor_create(
         mock: Use mock mode for testing.
     """
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         normalized_schema: Optional[Dict[str, Any]] = None
         if isinstance(output_schema, dict):
             normalized_schema = output_schema
@@ -1852,8 +1977,7 @@ def schema(
         model: Optional LLM model override.
     """
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
 
         normalized_schema: Optional[Dict[str, Any]] = None
         if isinstance(existing_schema, dict):
@@ -1877,8 +2001,7 @@ def schema(
 def monitor_list(ctx: Context) -> Dict[str, Any]:
     """List monitors (API v2 GET /monitor)."""
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         return client.monitor_list()
     except Exception as e:
         return {"error": str(e)}
@@ -1888,8 +2011,7 @@ def monitor_list(ctx: Context) -> Dict[str, Any]:
 def monitor_get(monitor_id: str, ctx: Context) -> Dict[str, Any]:
     """Get one monitor by id (API v2 GET /monitor/:id)."""
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         return client.monitor_get(monitor_id)
     except Exception as e:
         return {"error": str(e)}
@@ -1899,8 +2021,7 @@ def monitor_get(monitor_id: str, ctx: Context) -> Dict[str, Any]:
 def monitor_pause(monitor_id: str, ctx: Context) -> Dict[str, Any]:
     """Pause a monitor (API v2 POST /monitor/:id/pause)."""
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         return client.monitor_pause(monitor_id)
     except Exception as e:
         return {"error": str(e)}
@@ -1910,8 +2031,7 @@ def monitor_pause(monitor_id: str, ctx: Context) -> Dict[str, Any]:
 def monitor_resume(monitor_id: str, ctx: Context) -> Dict[str, Any]:
     """Resume a paused monitor (API v2 POST /monitor/:id/resume)."""
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         return client.monitor_resume(monitor_id)
     except Exception as e:
         return {"error": str(e)}
@@ -1921,8 +2041,7 @@ def monitor_resume(monitor_id: str, ctx: Context) -> Dict[str, Any]:
 def monitor_delete(monitor_id: str, ctx: Context) -> Dict[str, Any]:
     """Delete a monitor (API v2 DELETE /monitor/:id)."""
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         return client.monitor_delete(monitor_id)
     except Exception as e:
         return {"error": str(e)}
@@ -1947,8 +2066,7 @@ def monitor_activity(
         cursor: Opaque pagination cursor returned as `nextCursor` by a prior call.
     """
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         return client.monitor_activity(monitor_id, limit=limit, cursor=cursor)
     except Exception as e:
         return {"error": str(e)}
@@ -1994,8 +2112,7 @@ def scrape(
         mock: Use mock mode for testing.
     """
     try:
-        api_key = get_api_key(ctx)
-        client = ScapeGraphClient(api_key)
+        client = make_client(ctx)
         fc = client._fetch_config(
             mode=mode, stealth=stealth, timeout=timeout, wait=wait, headers=headers,
             cookies=cookies, country=country, scrolls=scrolls, mock=mock,
