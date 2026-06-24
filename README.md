@@ -169,7 +169,7 @@ Add this to your Claude Desktop config (`~/Library/Application Support/Claude/cl
       "command": "npx",
       "args": [
         "mcp-remote@0.1.25",
-        "https://scrapegraph-mcp.onrender.com/mcp",
+        "https://mcp.scrapegraphai.com/mcp",
         "--header",
         "X-API-Key:YOUR_API_KEY"
       ]
@@ -186,7 +186,7 @@ Cursor supports native HTTP MCP connections. Add to your Cursor MCP settings (`~
 {
   "mcpServers": {
     "scrapegraph-mcp": {
-      "url": "https://scrapegraph-mcp.onrender.com/mcp",
+      "url": "https://mcp.scrapegraphai.com/mcp",
       "headers": {
         "X-API-Key": "YOUR_API_KEY"
       }
