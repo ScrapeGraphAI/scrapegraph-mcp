@@ -82,7 +82,7 @@ from fastmcp import Context, FastMCP
 from pydantic import AliasChoices, BaseModel, Field
 from smithery.decorators import smithery
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, RedirectResponse
 
 # Configure logging
 logging.basicConfig(
@@ -93,6 +93,47 @@ logger = logging.getLogger(__name__)
 MCP_SERVER_VERSION = "2.0.0"
 # Matches scrapegraph-py v2 (env.py): https://v2-api.scrapegraphai.com/api
 DEFAULT_API_BASE_URL = "https://v2-api.scrapegraphai.com/api"
+
+# Where to send humans who open the /mcp endpoint in a browser.
+DOCS_URL = os.getenv(
+    "MCP_DOCS_URL",
+    "https://docs.scrapegraphai.com/services/mcp-server/introduction",
+)
+
+
+class BrowserRedirectMiddleware:
+    """Redirect browser visits to the MCP endpoint to the docs.
+
+    The ``/mcp`` path is the real MCP streamable-HTTP endpoint: clients POST
+    JSON-RPC there and open ``GET`` streams with ``Accept: text/event-stream``.
+    A person pasting ``https://mcp.scrapegraphai.com/mcp`` into a browser sends
+    ``GET`` with ``Accept: text/html`` instead — that (and only that) is
+    redirected to the documentation so real MCP traffic is left untouched.
+    """
+
+    def __init__(self, app, docs_url: str = DOCS_URL) -> None:
+        self.app = app
+        self.docs_url = docs_url
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http" and self._is_browser_navigation(scope):
+            response = RedirectResponse(self.docs_url, status_code=302)
+            await response(scope, receive, send)
+            return
+        await self.app(scope, receive, send)
+
+    def _is_browser_navigation(self, scope) -> bool:
+        if scope["method"] not in ("GET", "HEAD"):
+            return False
+        if scope["path"].rstrip("/") != "/mcp":
+            return False
+        accept = ""
+        for name, value in scope.get("headers", []):
+            if name == b"accept":
+                accept = value.decode("latin-1").lower()
+                break
+        # Real MCP SSE streams advertise text/event-stream; browsers ask for HTML.
+        return "text/html" in accept and "text/event-stream" not in accept
 
 
 def _api_base_url() -> str:
@@ -2041,7 +2082,14 @@ def main() -> None:
             port = int(os.getenv("PORT", "8000"))
             logger.info(f"Starting ScapeGraph MCP server in HTTP mode on {host}:{port}")
             print(f"Starting ScapeGraph MCP server in HTTP mode on {host}:{port}")
-            mcp.run(transport="http", host=host, port=port)
+            from starlette.middleware import Middleware
+
+            mcp.run(
+                transport="http",
+                host=host,
+                port=port,
+                middleware=[Middleware(BrowserRedirectMiddleware)],
+            )
         else:
             # Local stdio mode (Claude Desktop, Cursor, etc.)
             server_path = os.path.abspath(__file__)

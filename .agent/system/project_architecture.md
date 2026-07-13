@@ -566,6 +566,18 @@ scrapegraph-mcp
 **Server Transport:**
 - **stdio** - Standard input/output (default for MCP)
 - Communication via JSON-RPC over stdin/stdout
+- **http** - Remote deployment (set `MCP_TRANSPORT=http`). Streamable-HTTP endpoint
+  served at `/mcp`; health check at `/health`. Used by the Render deployment at
+  `mcp.scrapegraphai.com`.
+
+**Browser redirect (`/mcp`):**
+- `/mcp` is the live MCP streamable-HTTP endpoint (JSON-RPC `POST`, SSE `GET`
+  with `Accept: text/event-stream`).
+- `BrowserRedirectMiddleware` (in `server.py`, HTTP mode only) redirects **only**
+  human browser navigations — `GET`/`HEAD` on `/mcp` (or `/mcp/`) with
+  `Accept: text/html` — to the docs (`302`). Real MCP traffic is untouched.
+- Target is `https://docs.scrapegraphai.com/services/mcp-server/introduction`,
+  overridable via the `MCP_DOCS_URL` env var.
 
 ### Production Considerations
 
