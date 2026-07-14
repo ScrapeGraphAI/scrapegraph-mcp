@@ -570,12 +570,13 @@ scrapegraph-mcp
   served at `/mcp`; health check at `/health`. Used by the Render deployment at
   `mcp.scrapegraphai.com`.
 
-**Browser redirect (`/mcp`):**
+**Browser redirect (base domain `/`):**
 - `/mcp` is the live MCP streamable-HTTP endpoint (JSON-RPC `POST`, SSE `GET`
-  with `Accept: text/event-stream`).
+  with `Accept: text/event-stream`) and is left untouched.
 - `BrowserRedirectMiddleware` (in `server.py`, HTTP mode only) redirects **only**
-  human browser navigations — `GET`/`HEAD` on `/mcp` (or `/mcp/`) with
-  `Accept: text/html` — to the docs (`302`). Real MCP traffic is untouched.
+  human browser navigations to the base domain — `GET`/`HEAD` on `/` with
+  `Accept: text/html` — to the docs (`302`). Real MCP traffic (`/mcp`) and the
+  `/health` endpoint are untouched.
 - Target is `https://docs.scrapegraphai.com/services/mcp-server/introduction`,
   overridable via the `MCP_DOCS_URL` env var.
 

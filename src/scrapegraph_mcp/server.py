@@ -94,7 +94,7 @@ MCP_SERVER_VERSION = "2.0.0"
 # Matches scrapegraph-py v2 (env.py): https://v2-api.scrapegraphai.com/api
 DEFAULT_API_BASE_URL = "https://v2-api.scrapegraphai.com/api"
 
-# Where to send humans who open the /mcp endpoint in a browser.
+# Where to send humans who open the base domain in a browser.
 DOCS_URL = os.getenv(
     "MCP_DOCS_URL",
     "https://docs.scrapegraphai.com/services/mcp-server/introduction",
@@ -102,13 +102,13 @@ DOCS_URL = os.getenv(
 
 
 class BrowserRedirectMiddleware:
-    """Redirect browser visits to the MCP endpoint to the docs.
+    """Redirect browser visits to the base domain to the docs.
 
-    The ``/mcp`` path is the real MCP streamable-HTTP endpoint: clients POST
-    JSON-RPC there and open ``GET`` streams with ``Accept: text/event-stream``.
-    A person pasting ``https://mcp.scrapegraphai.com/mcp`` into a browser sends
-    ``GET`` with ``Accept: text/html`` instead — that (and only that) is
-    redirected to the documentation so real MCP traffic is left untouched.
+    The ``/mcp`` path is the real MCP streamable-HTTP endpoint and is left
+    untouched. A person pasting the base URL ``https://mcp.scrapegraphai.com/``
+    into a browser sends ``GET`` with ``Accept: text/html`` — that (and only
+    that) is redirected to the documentation so real MCP traffic and the
+    ``/health`` endpoint are left untouched.
     """
 
     def __init__(self, app, docs_url: str = DOCS_URL) -> None:
@@ -125,7 +125,7 @@ class BrowserRedirectMiddleware:
     def _is_browser_navigation(self, scope) -> bool:
         if scope["method"] not in ("GET", "HEAD"):
             return False
-        if scope["path"].rstrip("/") != "/mcp":
+        if scope["path"].rstrip("/") != "":
             return False
         accept = ""
         for name, value in scope.get("headers", []):
