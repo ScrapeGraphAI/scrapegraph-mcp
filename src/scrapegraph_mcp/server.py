@@ -219,6 +219,7 @@ class ScapeGraphClient:
             "SGAI-APIKEY": api_key,
             "Content-Type": "application/json",
             "accept": "application/json",
+            "User-Agent": f"scrapegraph-mcp/{MCP_SERVER_VERSION}",
             "X-SDK-Version": f"scrapegraph-mcp@{MCP_SERVER_VERSION}",
         }
         self.client = httpx.Client(timeout=httpx.Timeout(_api_timeout_s()))
