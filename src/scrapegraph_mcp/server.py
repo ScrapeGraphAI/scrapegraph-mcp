@@ -83,6 +83,7 @@ from pydantic import AliasChoices, BaseModel, Field
 from smithery.decorators import smithery
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 # Configure logging
 logging.basicConfig(
@@ -111,18 +112,18 @@ class BrowserRedirectMiddleware:
     ``/health`` endpoint are left untouched.
     """
 
-    def __init__(self, app, docs_url: str = DOCS_URL) -> None:
+    def __init__(self, app: ASGIApp, docs_url: str = DOCS_URL) -> None:
         self.app = app
         self.docs_url = docs_url
 
-    async def __call__(self, scope, receive, send) -> None:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http" and self._is_browser_navigation(scope):
             response = RedirectResponse(self.docs_url, status_code=302)
             await response(scope, receive, send)
             return
         await self.app(scope, receive, send)
 
-    def _is_browser_navigation(self, scope) -> bool:
+    def _is_browser_navigation(self, scope: Scope) -> bool:
         if scope["method"] not in ("GET", "HEAD"):
             return False
         if scope["path"].rstrip("/") != "":
