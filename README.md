@@ -158,6 +158,11 @@ Add the ScrapeGraphAI MCP server on the settings:
 
 Connect to our hosted MCP server - no local installation required!
 
+> [!WARNING]
+> The legacy MCP endpoint at `https://mcp.scrapegraphai.com/mcp` will be
+> deprecated soon. New integrations should use the replacement MCP endpoint:
+> `https://sgai-mcp-main.onrender.com`.
+
 ### Claude Desktop Configuration (Remote)
 
 Add this to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
@@ -169,7 +174,7 @@ Add this to your Claude Desktop config (`~/Library/Application Support/Claude/cl
       "command": "npx",
       "args": [
         "mcp-remote@0.1.25",
-        "https://mcp.scrapegraphai.com/mcp",
+        "https://sgai-mcp-main.onrender.com",
         "--header",
         "X-API-Key:YOUR_API_KEY"
       ]
@@ -186,7 +191,7 @@ Cursor supports native HTTP MCP connections. Add to your Cursor MCP settings (`~
 {
   "mcpServers": {
     "scrapegraph-mcp": {
-      "url": "https://mcp.scrapegraphai.com/mcp",
+      "url": "https://sgai-mcp-main.onrender.com",
       "headers": {
         "X-API-Key": "YOUR_API_KEY"
       }
