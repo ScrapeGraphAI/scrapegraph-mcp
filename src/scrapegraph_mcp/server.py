@@ -623,7 +623,17 @@ mcp = FastMCP("ScapeGraph API MCP Server")
 @mcp.custom_route("/health", methods=["GET"])
 async def health_check(_request: Request) -> JSONResponse:
     """Health check endpoint for container orchestration and load balancers."""
-    return JSONResponse({"status": "healthy", "service": "scrapegraph-mcp"})
+    return JSONResponse(
+        {
+            "status": "healthy",
+            "service": "scrapegraph-mcp",
+            "message": (
+                "This MCP server will be deprecated soon. "
+                "Please migrate to the new MCP server."
+            ),
+            "new_mcp_url": "https://sgai-mcp-main.onrender.com",
+        }
+    )
 
 
 # Add prompts to help users interact with the server
