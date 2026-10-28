@@ -34,7 +34,11 @@ Complete Model Context Protocol integration documentation:
 
 ### SOP Documentation (`sop/`)
 
-*Future: Standard operating procedures (e.g., adding new tools, testing)*
+#### [Local MCP Setup](./sop/local_mcp_setup.md)
+Run the server locally over stdio and register it with Claude Code for this project (`.mcp.json`):
+- **uv + Python 3.12** - `uv sync --python 3.12` from `uv.lock`
+- **Smoke test** - JSON-RPC `tools/list` over stdio
+- **`.mcp.json`** - `scrapegraph-local` server, key pulled in via `${SGAI_API_KEY}`
 
 ---
 
@@ -377,6 +381,10 @@ npx @modelcontextprotocol/inspector scrapegraph-mcp
 ---
 
 ## 📅 Changelog
+
+### October 2026
+- ✅ `get_api_key()` now falls back to the `SGAI_API_KEY` env var for local stdio runs. Before this, only the header or Smithery config worked, even though the docs said otherwise.
+- ✅ Added [Local MCP Setup SOP](./sop/local_mcp_setup.md) (uv + `.mcp.json` for Claude Code)
 
 ### April 2026
 - ✅ Migrated MCP client and tools to **API v2** ([scrapegraph-py#84](https://github.com/ScrapeGraphAI/scrapegraph-py/pull/84)): base `https://v2-api.scrapegraphai.com/api`, `SGAI-APIKEY` header (matches SDK wire format), new crawl/monitor/credits/history tools; removed sitemap, agentic_scrapper, status polling tools. Env vars aligned with SDK: `SGAI_API_URL`, `SGAI_TIMEOUT` (legacy alias `SGAI_TIMEOUT_S` still honored).

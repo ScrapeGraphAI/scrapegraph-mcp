@@ -572,11 +572,12 @@ class ConfigSchema(BaseModel):
 
 def get_api_key(ctx: Context) -> str:
     """
-    Get the API key from HTTP header or MCP session config.
+    Get the API key from HTTP header, MCP session config, or environment.
 
-    Supports two modes:
+    Supports three modes:
     - HTTP mode (Render): API key from 'X-API-Key' header via mcp-remote
     - Stdio mode (Smithery): API key from session_config.scrapegraph_api_key
+    - Stdio mode (local): API key from the SGAI_API_KEY environment variable
 
     Args:
         ctx: FastMCP context
@@ -607,11 +608,18 @@ def get_api_key(ctx: Context) -> str:
             logger.info("API key retrieved from session config")
             return str(api_key)
 
-    logger.error("No API key found in header or session config")
+    # Fall back to environment (for plain local stdio runs)
+    api_key = os.environ.get("SGAI_API_KEY")
+    if api_key:
+        logger.info("API key retrieved from SGAI_API_KEY environment variable")
+        return api_key
+
+    logger.error("No API key found in header, session config, or environment")
     raise ValueError(
         "ScapeGraph API key is required. Please provide it via:\n"
         "- HTTP header 'X-API-Key' (for remote server via mcp-remote)\n"
-        "- MCP config 'scrapegraphApiKey' (for Smithery/local stdio)"
+        "- MCP config 'scrapegraphApiKey' (for Smithery/local stdio)\n"
+        "- SGAI_API_KEY environment variable (for local stdio)"
     )
 
 
